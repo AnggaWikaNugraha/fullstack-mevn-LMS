@@ -9,22 +9,42 @@ interface User {
 }
 
 export const useAuthStore = defineStore('auth', () => {
+  const accessToken = ref<string | null>(null);
   const user = ref<User | null>(null);
-  const token = ref<string | null>(localStorage.getItem('token'));
 
-  const isAuthenticated = computed(() => !!token.value);
+  const isAuthenticated = computed(() => !!accessToken.value);
 
-  function setAuth(userData: User, accessToken: string) {
+  function setAuth(userData: User, access: string, refresh: string) {
     user.value = userData;
-    token.value = accessToken;
-    localStorage.setItem('token', accessToken);
+    accessToken.value = access;
+    localStorage.setItem('refreshToken', refresh);
+    localStorage.setItem('user', JSON.stringify(userData));
+  }
+
+  function setAccessToken(token: string) {
+    accessToken.value = token;
   }
 
   function logout() {
+    accessToken.value = null;
     user.value = null;
-    token.value = null;
-    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('deviceId');
   }
 
-  return { user, token, isAuthenticated, setAuth, logout };
+  function loadFromStorage() {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) user.value = JSON.parse(storedUser);
+  }
+
+  return {
+    accessToken,
+    user,
+    isAuthenticated,
+    setAuth,
+    setAccessToken,
+    logout,
+    loadFromStorage,
+  };
 });
