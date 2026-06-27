@@ -260,6 +260,40 @@ FE: redirect to [Login Page]
 
 ---
 
+#### 1.5 Global FE — Error Handling
+
+**Aturan penanganan error:**
+
+| Jenis Error | Contoh | Handler |
+|-------------|--------|---------|
+| Network error | Tidak ada internet, timeout | Modal global |
+| Server error (5xx) | Server crash, maintenance | Modal global |
+| Auth error (401) | Token expired | Silent refresh → gagal → redirect login |
+| Validation error (400/422) | Email salah format | Inline di form |
+| Not found (404) | Data tidak ditemukan | Inline atau halaman 404 |
+
+**Flow:**
+```
+Setiap API call via Axios
+        ↓
+Axios response interceptor menangkap error
+        ↓
+Network error / 5xx  → set errorStore → tampilkan GlobalErrorModal
+401                  → coba silent refresh
+                         → berhasil → ulangi request
+                         → gagal    → logout + redirect ke login
+400 / 422            → lempar error ke komponen / form (handle inline)
+404                  → lempar error ke komponen (handle inline)
+```
+
+**FE Tasks:**
+- [ ] `src/stores/errorStore.ts` — Pinia store untuk state error global (pesan, tipe, visibility)
+- [ ] `src/components/ui/GlobalErrorModal.vue` — modal error yang dipasang di `App.vue`
+- [ ] Update `src/api/client.ts` — Axios interceptor tangkap network error & 5xx, trigger errorStore
+- [ ] Update `App.vue` — pasang `GlobalErrorModal` di root app
+
+---
+
 ### Phase 2 — Courses & Bootcamp
 
 > Coming Soon
@@ -295,7 +329,8 @@ src/
 ├── router/
 │   └── index.ts               # Vue Router + navigation guard
 ├── stores/
-│   └── authStore.ts           # Pinia — access token, user data, deviceId
+│   ├── authStore.ts           # Pinia — access token, user data, deviceId
+│   └── errorStore.ts          # Pinia — global error modal state
 ├── types/
 │   └── auth.ts                # TypeScript types request & response auth
 ├── views/
@@ -307,7 +342,8 @@ src/
 │       ├── ForgotPasswordView.vue
 │       └── ResetPasswordView.vue
 └── components/
-    └── ui/                    # Reusable UI components
+    └── ui/
+        └── GlobalErrorModal.vue  # Modal error global (network / server error)
 ```
 
 ### Backend (`be-server/src/`)
