@@ -99,14 +99,14 @@ FE: redirect to [Login Page]
 - Brute force OTP → rate limiting on `/verify-otp` endpoint
 
 **BE Tasks:**
-- [ ] User model (`name`, `email`, `password`, `role`, `isVerified`, `otp`, `otpExpires`, `otpLastSentAt`)
-- [ ] Zod validation schema untuk register, verify OTP, resend OTP
-- [ ] Email service config (Nodemailer SMTP setup)
-- [ ] Template email OTP (konten email yang dikirim ke user)
-- [ ] `POST /api/auth/register` — validasi input, cek email, buat user, generate OTP, kirim email
-- [ ] `POST /api/auth/verify-otp` — cek OTP + expiry, tandai akun sebagai verified
-- [ ] `POST /api/auth/resend-otp` — enforce cooldown 60s, generate OTP baru, kirim ulang email
-- [ ] Rate limit pada `/verify-otp` & `/resend-otp`
+- [x] User model (`name`, `email`, `password`, `role`, `isVerified`, `otp`, `otpExpires`, `otpLastSentAt`)
+- [x] Zod validation schema untuk register, verify OTP, resend OTP
+- [x] Email service config (Nodemailer SMTP setup)
+- [x] Template email OTP (konten email yang dikirim ke user)
+- [x] `POST /api/auth/register` — validasi input, cek email, buat user, generate OTP, kirim email
+- [x] `POST /api/auth/verify-otp` — cek OTP + expiry, tandai akun sebagai verified
+- [x] `POST /api/auth/resend-otp` — enforce cooldown 60s, generate OTP baru, kirim ulang email
+- [x] Rate limit pada `/verify-otp` & `/resend-otp`
 
 **FE Tasks:**
 - [ ] Zod schema validasi register (nama, email, password, konfirmasi password)
@@ -187,14 +187,14 @@ createdAt         → Date
 - Refresh token expired → paksa logout, redirect ke login
 
 **BE Tasks:**
-- [ ] Session model (`userId`, `deviceId`, `refreshToken`, `refreshExpiredAt`, `createdAt`)
-- [ ] Zod validation schema untuk login
-- [ ] `POST /api/auth/login` — validasi kredensial, cek session, hash refresh token, return access token + refresh token
-- [ ] `POST /api/auth/refresh` — validasi refresh token, cek session, return access token baru
-- [ ] `POST /api/auth/logout` — hapus session berdasarkan deviceId
-- [ ] `GET /api/auth/me` — return data user yang sedang login (butuh access token)
-- [ ] Auth middleware — verifikasi access token + cek session aktif di DB
-- [ ] Rate limit pada `/login`
+- [x] Session model (`userId`, `deviceId`, `refreshToken`, `refreshExpiredAt`, `createdAt`)
+- [x] Zod validation schema untuk login
+- [x] `POST /api/auth/login` — validasi kredensial, cek session, hash refresh token, return access token + refresh token
+- [x] `POST /api/auth/refresh` — validasi refresh token, cek session, return access token baru
+- [x] `POST /api/auth/logout` — hapus session berdasarkan deviceId
+- [x] `GET /api/auth/me` — return data user yang sedang login (butuh access token)
+- [x] Auth middleware — verifikasi access token + cek session aktif di DB
+- [x] Rate limit pada `/login`
 
 **FE Tasks:**
 - [ ] Zod schema validasi login (email, password)
@@ -232,11 +232,11 @@ FE: redirect to [Login Page]
 ```
 
 **BE Tasks:**
-- [ ] Zod validation schema untuk forgot password, verify reset OTP, reset password
-- [ ] `POST /api/auth/forgot-password` — cek email terdaftar, generate OTP, kirim email
-- [ ] `POST /api/auth/verify-reset-otp` — validasi OTP untuk reset password
-- [ ] `POST /api/auth/reset-password` — validasi password baru (min length, konfirmasi), update password, hapus semua session aktif
-- [ ] Rate limit pada `/forgot-password`
+- [x] Zod validation schema untuk forgot password, verify reset OTP, reset password
+- [x] `POST /api/auth/forgot-password` — cek email terdaftar, generate OTP, kirim email
+- [x] `POST /api/auth/verify-reset-otp` — validasi OTP untuk reset password
+- [x] `POST /api/auth/reset-password` — validasi password baru (min length, konfirmasi), update password, hapus semua session aktif
+- [x] Rate limit pada `/forgot-password`
 
 **FE Tasks:**
 - [ ] Zod schema validasi (email, OTP, password baru + konfirmasi password)
