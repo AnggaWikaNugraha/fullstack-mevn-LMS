@@ -35,12 +35,19 @@ export const useAuthStore = defineStore('auth', () => {
     if (storedUser) user.value = JSON.parse(storedUser);
   }
 
+  // Update user with fresh data from BE (called after getMe() resolves)
+  function setUser(userData: User) {
+    user.value = userData;
+    localStorage.setItem('user', JSON.stringify(userData));
+  }
+
   return {
     accessToken,
     user,
     isAuthenticated,
     setAuth,
     setAccessToken,
+    setUser,
     logout,
     loadFromStorage,
   };
