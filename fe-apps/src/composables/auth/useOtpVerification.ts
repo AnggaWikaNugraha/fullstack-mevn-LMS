@@ -24,7 +24,7 @@ export function useOtpVerification() {
   const canResend = computed(() => cooldown.value === 0);
 
   // Mutation for OTP verification — calls different endpoint based on mode
-  const { mutate: submitOtp, isPending: isLoading, error: submitError } = useMutation({
+  const { mutate: submitOtp, isPending, error: submitError } = useMutation({
     mutationFn: (otpValue: string) => mode === 'register' ? verifyOtp({ email, otp: otpValue }) : verifyResetOtp({ email, otp: otpValue }),
     onSuccess: () => {
       if (mode === 'register') {
@@ -58,5 +58,5 @@ export function useOtpVerification() {
     if (canResend.value) resendMutate();
   };
 
-  return { email, otp, isLoading, isResending, serverError, cooldown, canResend, onSubmit, onResend };
+  return { email, otp, isPending, isResending, serverError, cooldown, canResend, onSubmit, onResend };
 }
