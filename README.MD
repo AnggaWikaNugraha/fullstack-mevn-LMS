@@ -72,18 +72,27 @@ fullstack-mevn-lsm/
 ![Register](docs/auth%20-%20register.png)
 
 ```
-[Register Page]
 User fills form (name, email, password) → submit
-        ↓
-BE: validate input (Zod)
-        ↓
-BE: check if email exists?
-  → isVerified: true  → error "Email already registered"
-  → isVerified: false → delete old account, create new
-        ↓
-BE: save user (isVerified: false) + generate 6-digit OTP + send email (Nodemailer)
-        ↓
-FE: redirect to [OTP Verification Page] (pass email via router state)
+          |
+          ▼
+    POST /auth/register
+          |
+          ├─→ Validation error (Zod)       → error with field messages
+          |
+          ├─→ Email exists & isVerified     → error "Email already registered"
+          |
+          ├─→ Email exists & !isVerified    → delete old account, create new
+          |
+          └─→ Valid
+                    |
+                    ▼
+              Save user (isVerified: false)
+              Generate 6-digit OTP (expires 15 min)
+              Send OTP via email (Nodemailer)
+                    |
+                    ▼
+              FE: redirect to [OTP Verification Page]
+              (pass email via router state)
 ```
 
 **OTP Verification Flow:**
@@ -91,23 +100,45 @@ FE: redirect to [OTP Verification Page] (pass email via router state)
 ![OTP Verify](docs/auth%20-%20OTP%20verify.png)
 
 ```
-[OTP Verification Page]
-User inputs OTP code received via email
-        ↓
-BE: validate OTP (check code + expiry 15 min)
-  → expired → error "OTP expired, please resend"
-  → invalid → error "Invalid OTP"
-  → valid   → mark isVerified: true, clear OTP
-        ↓
-FE: redirect to [Login Page]
+User inputs 6-digit OTP → submit
+          |
+          ▼
+    POST /auth/verify-otp
+          |
+          ├─→ OTP expired    → error "OTP expired, please resend"
+          |
+          ├─→ OTP invalid    → error "Invalid OTP"
+          |
+          └─→ OTP valid
+                    |
+                    ▼
+              Mark isVerified: true
+              Clear OTP fields
+                    |
+                    ▼
+              FE: redirect to [Login Page]
 ```
 
-**Edge Cases:**
-- Email already registered and verified → reject with error
-- Email registered but unverified → replace account and resend OTP
-- OTP expired → user must click resend (not re-register)
-- Resend OTP → BE enforces 60s cooldown (rate-limited), regenerate OTP and resend email
-- Brute force OTP → rate limiting on `/verify-otp` endpoint
+**Resend OTP Flow:**
+
+```
+User clicks "Resend OTP"
+          |
+          ▼
+    POST /auth/resend-otp
+          |
+          ├─→ Within 60s cooldown    → error "Please wait before resending"
+          |
+          └─→ Cooldown passed
+                    |
+                    ▼
+              Generate new OTP
+              Reset otpLastSentAt
+              Send email
+                    |
+                    ▼
+              FE: restart 60s countdown
+```
 
 **BE Tasks:**
 - [x] User model (`name`, `email`, `password`, `role`, `isVerified`, `otp`, `otpExpires`, `otpLastSentAt`)
@@ -141,41 +172,79 @@ FE: redirect to [Login Page]
 
 ![Login](docs/auth%20-%20login.png)
 
-**Flow:**
+**Login Flow:**
+
 ```
-[Login Page]
-User inputs email + password + deviceId → submit
-        ↓
-BE: validate input (Zod)
-        ↓
-BE: check credentials + isVerified
-        ↓
-BE: check active session for this user
-  → no session                      → create new session
-  → session exists
-      → refresh token expired        → delete old session, create new session (auto)
-      → same deviceId               → delete old session, create new session, return new tokens
-      → different device            → reject: "Account is active on another device. Please logout first."
-        ↓
-BE: return access token (15 min) + refresh token (1 day fixed)
-        ↓
-FE: store access token in Pinia (memory), refresh token in localStorage
-        ↓
-FE: redirect to [Dashboard]
+User inputs email + password → submit
+          |
+          ▼
+    POST /auth/login  (+ deviceId in body)
+          |
+          ├─→ Validation error (Zod)         → error with field messages
+          |
+          ├─→ Email not found                → error "Email or password incorrect"
+          |
+          ├─→ Wrong password                 → error "Email or password incorrect"
+          |
+          ├─→ Account not verified           → error "Please verify your email first"
+          |
+          └─→ Valid & verified
+                    |
+                    ▼
+              Check active session
+                    |
+                    ├─→ No session                    → create new session
+                    |
+                    ├─→ Same deviceId                 → replace session, return new tokens
+                    |
+                    ├─→ Different device, expired     → delete old session, create new session
+                    |
+                    └─→ Different device, still valid → error "Account is active on another device"
+                              |
+                              ▼
+                        Generate access token (15 min)
+                        Generate refresh token (1 day fixed, hashed in DB)
+                        Save session to DB
+                              |
+                              ▼
+                        FE: store access token in Pinia (memory)
+                        FE: store refresh token + deviceId in localStorage
+                        FE: redirect to [Home]
+```
 
---- when access token expires (15 minutes) ---
+**Silent Refresh Flow:**
 
-FE: send refresh token to BE (silent, in background)
-        ↓
-BE: validate refresh token + not expired + same deviceId
-        ↓
-BE: return new access token (15 min)
-        ↓
-FE: continue using the app, user is unaware
+```
+API request returns 401 (access token expired)
+          |
+          ▼
+    POST /auth/refresh  (refresh token + deviceId)
+          |
+          ├─→ Refresh token invalid/expired  → force logout → redirect to [Login Page]
+          |
+          └─→ Valid
+                    |
+                    ▼
+              Return new access token (15 min)
+                    |
+                    ▼
+              FE: retry original request — user is unaware
+```
 
---- after 1 day ---
+**Logout Flow:**
 
-Refresh token expired → FE force logout → redirect to login
+```
+User clicks logout
+          |
+          ▼
+    POST /auth/logout  (requires JWT)
+          |
+          ▼
+    Delete session from DB (by deviceId)
+          |
+          ▼
+    FE: clear Pinia store + localStorage
+    FE: redirect to [Login Page]
 ```
 
 **Device ID:**
@@ -229,17 +298,43 @@ createdAt         → Date
 ![Forgot Password](docs/auth%20-%20forgot%20password.png)
 
 ```
-[Forgot Password Page]
 User inputs email → submit
-        ↓
-BE: check if email exists + generate OTP + send email
-  (always returns 200 even if email not found — prevents email enumeration)
-        ↓
-FE: redirect to [OTP Verification Page] (reset mode, pass email via router state)
-        ↓
-User inputs OTP → BE validate OTP + expiry
-        ↓
-FE: redirect to [Reset Password Page] (pass email + otp via router state)
+          |
+          ▼
+    POST /auth/forgot-password
+          |
+          └─→ Always returns 200 (prevents email enumeration)
+                    |
+                    ├─→ Email not found    → no email sent (silent)
+                    |
+                    └─→ Email found
+                              |
+                              ▼
+                        Generate OTP (expires 15 min)
+                        Send OTP via email
+                              |
+                              ▼
+                        FE: redirect to [OTP Verification Page] (reset mode)
+                        (pass email via router state)
+```
+
+**OTP Verification Flow (Reset Mode):**
+
+```
+User inputs 6-digit OTP → submit
+          |
+          ▼
+    POST /auth/verify-reset-otp
+          |
+          ├─→ OTP expired    → error "OTP expired, please resend"
+          |
+          ├─→ OTP invalid    → error "Invalid OTP"
+          |
+          └─→ OTP valid
+                    |
+                    ▼
+              FE: redirect to [Reset Password Page]
+              (pass email + otp via router state)
 ```
 
 **Reset Password Flow:**
@@ -247,14 +342,26 @@ FE: redirect to [Reset Password Page] (pass email + otp via router state)
 ![New Password](docs/auth%20-%20new%20password.png)
 
 ```
-[Reset Password Page]
 User inputs new password + confirm password → submit
-        ↓
-BE: re-validate OTP (prevents skipping the verify step)
-        ↓
-BE: update password + delete all active sessions (force logout all devices)
-        ↓
-FE: show success state → redirect to [Login Page]
+          |
+          ▼
+    POST /auth/reset-password
+          |
+          ├─→ OTP invalid/expired    → error (prevents skipping verify step)
+          |
+          ├─→ Password too short     → error "Password must be at least 8 characters"
+          |
+          ├─→ Passwords do not match → error "Passwords do not match"
+          |
+          └─→ Valid
+                    |
+                    ▼
+              Update password (hashed)
+              Delete all active sessions (force logout all devices)
+                    |
+                    ▼
+              FE: show success state
+              FE: redirect to [Login Page] (after 2s)
 ```
 
 **BE Tasks:**
