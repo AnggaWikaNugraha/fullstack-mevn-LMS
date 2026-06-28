@@ -67,7 +67,10 @@ fullstack-mevn-lsm/
 
 #### 1.1 Register + OTP Verification
 
-**Flow:**
+**Register Flow:**
+
+![Register](docs/auth%20-%20register.png)
+
 ```
 [Register Page]
 User fills form (name, email, password) → submit
@@ -81,7 +84,13 @@ BE: check email exists?
 BE: save user (isVerified: false) + generate 6-digit OTP + send email (Nodemailer)
         ↓
 FE: redirect to [OTP Verification Page] (pass email via router state)
-        ↓
+```
+
+**OTP Verification Flow:**
+
+![OTP Verify](docs/auth%20-%20OTP%20verify.png)
+
+```
 [OTP Verification Page]
 User inputs OTP code received via email
         ↓
@@ -129,6 +138,8 @@ FE: redirect to [Login Page]
 |---------------|----------------|-------------------------------------------------|
 | Access Token  | 15 menit       | Dipakai untuk request ke API                    |
 | Refresh Token | 1 hari (fixed) | Dipakai untuk minta access token baru. Tidak diperpanjang meski aktif. Setelah 1 hari harus login ulang. |
+
+![Login](docs/auth%20-%20login.png)
 
 **Flow:**
 ```
@@ -213,24 +224,37 @@ createdAt         → Date
 
 #### 1.3 Forgot Password
 
-**Flow:**
+**Forgot Password Flow:**
+
+![Forgot Password](docs/auth%20-%20forgot%20password.png)
+
 ```
 [Forgot Password Page]
 User inputs email → submit
         ↓
 BE: check email exists + generate OTP + send email
+  (selalu return 200 meski email tidak ada — cegah email enumeration)
         ↓
-FE: redirect to [OTP Verification Page] (reset mode)
+FE: redirect to [OTP Verification Page] (reset mode, pass email via router state)
         ↓
-User inputs OTP
+User inputs OTP → BE validate OTP + expiry
         ↓
-FE: redirect to [Reset Password Page]
+FE: redirect to [Reset Password Page] (pass email + otp via router state)
+```
+
+**Reset Password Flow:**
+
+![New Password](docs/auth%20-%20new%20password.png)
+
+```
+[Reset Password Page]
+User inputs new password + confirm password → submit
         ↓
-User inputs new password → submit
+BE: re-validate OTP (cegah skip halaman verify)
         ↓
 BE: update password + hapus semua session aktif (force logout semua device)
         ↓
-FE: redirect to [Login Page]
+FE: tampilkan success state → redirect to [Login Page]
 ```
 
 **BE Tasks:**
