@@ -5,7 +5,8 @@ const requestLogger = (req: Request, res: Response, next: NextFunction): void =>
 
   // Log incoming request
   console.log('\n─────────────────────────────────────────');
-  console.log(`[REQUEST]  ${req.method} ${req.originalUrl}`);
+  const now = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+  console.log(`[REQUEST]  ${req.method} ${req.originalUrl} — ${now}`);
 
   if (Object.keys(req.body).length > 0) {
     // Mask sensitive fields before logging

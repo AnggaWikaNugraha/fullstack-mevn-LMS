@@ -16,14 +16,16 @@ fullstack-mevn-lsm/
 
 ### Frontend (`fe-apps`)
 
-| Category      | Technology       |
-|---------------|------------------|
-| Framework     | Vue 3            |
-| Language      | TypeScript       |
-| Build Tool    | Vite             |
-| Routing       | Vue Router 4     |
-| State Manager | Pinia            |
-| HTTP Client   | Axios            |
+| Category      | Technology                 |
+|---------------|----------------------------|
+| Framework     | Vue 3                      |
+| Language      | TypeScript                 |
+| Build Tool    | Vite                       |
+| Styling       | Tailwind CSS v4            |
+| Icons         | @lucide/vue                |
+| Routing       | Vue Router 4               |
+| State Manager | Pinia                      |
+| HTTP Client   | Axios                      |
 | Server State  | TanStack Query (Vue Query) |
 | Form          | VeeValidate + Zod          |
 
@@ -35,9 +37,9 @@ fullstack-mevn-lsm/
 | Framework       | Express              |
 | Language        | TypeScript           |
 | ODM             | Mongoose             |
-| Database        | MongoDB              |
+| Database        | MongoDB Atlas        |
 | Auth            | JWT (JSON Web Token) |
-| Email           | Nodemailer           |
+| Email           | Nodemailer (Gmail)   |
 | Validation      | Zod                  |
 | Rate Limiting   | express-rate-limit   |
 
@@ -47,7 +49,7 @@ fullstack-mevn-lsm/
 
 | Feature                                           | Status      |
 |---------------------------------------------------|-------------|
-| Authentication (Register, Login, Forgot Password) | Coming Soon |
+| Authentication                                    | ✅ Done     |
 | Courses & Bootcamp (list, detail, video player)   | Coming Soon |
 | Quiz & Task                                       | Coming Soon |
 | Checkout & Subscription                           | Coming Soon |
@@ -61,7 +63,7 @@ fullstack-mevn-lsm/
 
 > Dev order: **BE first** (model + API) → **FE** (UI + integration)
 
-### Phase 1 — Authentication
+### Phase 1 — Authentication ✅
 
 #### 1.1 Register + OTP Verification
 
@@ -109,12 +111,12 @@ FE: redirect to [Login Page]
 - [x] Rate limit pada `/verify-otp` & `/resend-otp`
 
 **FE Tasks:**
-- [ ] Zod schema validasi register (nama, email, password, konfirmasi password)
-- [ ] API service `src/api/auth.ts` — fungsi `register()`, `verifyOtp()`, `resendOtp()`
-- [ ] `/auth/register` — halaman form pendaftaran (VeeValidate + Zod)
-- [ ] `/auth/verify-otp` — halaman input OTP (6-digit, resend countdown 60s)
-- [ ] Handle error response dari BE (email sudah terdaftar, OTP invalid/expired)
-- [ ] Loading state saat submit form
+- [x] Zod schema validasi register (nama, email, password, konfirmasi password)
+- [x] API service `src/api/auth.ts` — fungsi `register()`, `verifyOtp()`, `resendOtp()`
+- [x] `/auth/register` — halaman form pendaftaran (VeeValidate + Zod)
+- [x] `/auth/verify-otp` — halaman input OTP (6-digit, resend countdown 60s)
+- [x] Handle error response dari BE (email sudah terdaftar, OTP invalid/expired)
+- [x] Loading state saat submit form (`isPending` dari TanStack Query `useMutation`)
 
 ---
 
@@ -123,9 +125,9 @@ FE: redirect to [Login Page]
 **Rule: 1 account = 1 active device at a time (Web or Mobile)**
 
 **Token Strategy:**
-| Token         | Expiry    | Keterangan                                      |
-|---------------|-----------|-------------------------------------------------|
-| Access Token  | 15 menit  | Dipakai untuk request ke API                    |
+| Token         | Expiry         | Keterangan                                      |
+|---------------|----------------|-------------------------------------------------|
+| Access Token  | 15 menit       | Dipakai untuk request ke API                    |
 | Refresh Token | 1 hari (fixed) | Dipakai untuk minta access token baru. Tidak diperpanjang meski aktif. Setelah 1 hari harus login ulang. |
 
 **Flow:**
@@ -141,7 +143,7 @@ BE: check active Session for this user
   → no session                      → buat session baru
   → session exists
       → refresh token expired        → hapus session lama, buat session baru (auto)
-      → same deviceId               → perbarui access token
+      → same deviceId               → hapus session lama, buat session baru, return token baru
       → different device            → reject: "Account is active on another device. Please logout first."
         ↓
 BE: return access token (15m) + refresh token (1 hari fixed)
@@ -174,7 +176,7 @@ Refresh token expired → FE paksa logout → redirect ke login
 ```
 userId            → ref to User
 deviceId          → string (unique per device)
-refreshToken      → string (hashed)
+refreshToken      → string (hashed dengan bcrypt)
 refreshExpiredAt  → Date (fixed 1 hari sejak login)
 createdAt         → Date
 ```
@@ -197,15 +199,15 @@ createdAt         → Date
 - [x] Rate limit pada `/login`
 
 **FE Tasks:**
-- [ ] Zod schema validasi login (email, password)
-- [ ] Generate UUID deviceId saat pertama kali buka app, simpan di localStorage
-- [ ] API service `src/api/auth.ts` — fungsi `login()`, `refresh()`, `logout()`, `getMe()`
-- [ ] `/auth/login` — halaman form login (VeeValidate + Zod)
-- [ ] Pinia authStore — simpan access token di memory, refresh token + user data + deviceId di localStorage
-- [ ] Load user data via `getMe()` saat app pertama dibuka (jika token masih valid)
-- [ ] Axios interceptor — auto silent refresh saat access token expired (401)
-- [ ] Handle error "akun aktif di perangkat lain" dengan pesan yang jelas
-- [ ] Loading state saat submit form
+- [x] Zod schema validasi login (email, password)
+- [x] Generate UUID deviceId saat pertama kali buka app, simpan di localStorage (`useDeviceId` composable)
+- [x] API service `src/api/auth.ts` — fungsi `login()`, `refresh()`, `logout()`, `getMe()`
+- [x] `/auth/login` — halaman form login (VeeValidate + Zod)
+- [x] Pinia authStore — simpan access token di memory, refresh token + user data + deviceId di localStorage
+- [x] Load user data via `getMe()` saat app pertama dibuka (jika token masih valid)
+- [x] Axios interceptor — auto silent refresh saat access token expired (401)
+- [x] Handle error "akun aktif di perangkat lain" dengan pesan yang jelas
+- [x] Loading state saat submit form (`isPending` dari TanStack Query `useMutation`)
 
 ---
 
@@ -226,7 +228,7 @@ FE: redirect to [Reset Password Page]
         ↓
 User inputs new password → submit
         ↓
-BE: update password
+BE: update password + hapus semua session aktif (force logout semua device)
         ↓
 FE: redirect to [Login Page]
 ```
@@ -239,24 +241,26 @@ FE: redirect to [Login Page]
 - [x] Rate limit pada `/forgot-password`
 
 **FE Tasks:**
-- [ ] Zod schema validasi (email, OTP, password baru + konfirmasi password)
-- [ ] API service `src/api/auth.ts` — fungsi `forgotPassword()`, `verifyResetOtp()`, `resetPassword()`
-- [ ] `/auth/forgot-password` — halaman input email
-- [ ] `/auth/verify-otp` — dipakai ulang dalam mode reset (bukan halaman baru, dibedakan via router state)
-- [ ] `/auth/reset-password` — halaman input password baru + konfirmasi
-- [ ] Handle error response dari BE
-- [ ] Loading state saat submit form
+- [x] Zod schema validasi (email, OTP, password baru + konfirmasi password)
+- [x] API service `src/api/auth.ts` — fungsi `forgotPassword()`, `verifyResetOtp()`, `resetPassword()`
+- [x] `/auth/forgot-password` — halaman input email
+- [x] `/auth/verify-otp` — dipakai ulang dalam mode reset (bukan halaman baru, dibedakan via `history.state.mode`)
+- [x] `/auth/reset-password` — halaman input password baru + konfirmasi, success state dengan redirect otomatis
+- [x] Handle error response dari BE
+- [x] Loading state saat submit form (`isPending` dari TanStack Query `useMutation`)
 
 ---
 
 #### 1.4 Global FE — Auth Infrastructure
 
 **FE Tasks:**
-- [ ] `src/api/auth.ts` — semua API call auth terkumpul dalam satu file
-- [ ] `src/types/auth.ts` — TypeScript types untuk semua request & response auth
-- [ ] Router guard (navigation guard) — redirect ke `/auth/login` jika belum auth, redirect ke `/` jika sudah auth
-- [ ] Toast / notifikasi global untuk success & error message
-- [ ] `src/composables/useDeviceId.ts` — composable untuk generate & baca UUID deviceId
+- [x] `src/api/client.ts` — Axios instance + interceptors (silent refresh, global error modal)
+- [x] `src/api/auth.ts` — semua API call auth terkumpul dalam satu file
+- [x] `src/types/api.ts` — shared `ApiResponse<T>` generic type
+- [x] `src/types/auth.ts` — TypeScript types untuk semua request & response auth
+- [x] Router guard (navigation guard) — redirect ke `/auth/login` jika belum auth, redirect ke `/` jika sudah auth
+- [x] `src/composables/useDeviceId.ts` — composable untuk generate & baca UUID deviceId
+- [x] `src/composables/auth/` — semua logic auth di-extract ke composable (Vue equivalent of React custom hooks)
 
 ---
 
@@ -264,33 +268,19 @@ FE: redirect to [Login Page]
 
 **Aturan penanganan error:**
 
-| Jenis Error | Contoh | Handler |
-|-------------|--------|---------|
-| Network error | Tidak ada internet, timeout | Modal global |
-| Server error (5xx) | Server crash, maintenance | Modal global |
-| Auth error (401) | Token expired | Silent refresh → gagal → redirect login |
-| Validation error (400/422) | Email salah format | Inline di form |
-| Not found (404) | Data tidak ditemukan | Inline atau halaman 404 |
-
-**Flow:**
-```
-Setiap API call via Axios
-        ↓
-Axios response interceptor menangkap error
-        ↓
-Network error / 5xx  → set errorStore → tampilkan GlobalErrorModal
-401                  → coba silent refresh
-                         → berhasil → ulangi request
-                         → gagal    → logout + redirect ke login
-400 / 422            → lempar error ke komponen / form (handle inline)
-404                  → lempar error ke komponen (handle inline)
-```
+| Jenis Error         | Contoh                          | Handler                          |
+|---------------------|---------------------------------|----------------------------------|
+| Network error       | Tidak ada internet, timeout     | Modal global                     |
+| Server error (5xx)  | Server crash, maintenance       | Modal global                     |
+| Auth error (401)    | Token expired                   | Silent refresh → gagal → redirect login |
+| Validation error (400) | Email salah format           | Inline di form                   |
+| Not found (404)     | Data tidak ditemukan            | Inline di form                   |
 
 **FE Tasks:**
-- [ ] `src/stores/errorStore.ts` — Pinia store untuk state error global (pesan, tipe, visibility)
-- [ ] `src/components/ui/GlobalErrorModal.vue` — modal error yang dipasang di `App.vue`
-- [ ] Update `src/api/client.ts` — Axios interceptor tangkap network error & 5xx, trigger errorStore
-- [ ] Update `App.vue` — pasang `GlobalErrorModal` di root app
+- [x] `src/stores/errorStore.ts` — Pinia store untuk state error global
+- [x] `src/components/ui/GlobalErrorModal.vue` — modal error yang dipasang di `App.vue`
+- [x] `src/api/client.ts` — Axios interceptor tangkap network error & 5xx, trigger errorStore
+- [x] `App.vue` — pasang `GlobalErrorModal` di root app
 
 ---
 
@@ -322,23 +312,33 @@ src/
 │   ├── client.ts              # Axios instance + interceptors (silent refresh)
 │   └── auth.ts                # Semua API call auth
 ├── composables/
-│   └── useDeviceId.ts         # Generate & baca UUID deviceId
+│   ├── useDeviceId.ts         # Generate & baca UUID deviceId
+│   └── auth/                  # Auth composables (logic dipisah dari view)
+│       ├── useLogin.ts
+│       ├── useRegister.ts
+│       ├── useOtpVerification.ts
+│       ├── useForgotPassword.ts
+│       └── useResetPassword.ts
 ├── layouts/
 │   ├── DefaultLayout.vue
-│   └── AuthLayout.vue
+│   └── AuthLayout.vue         # Split-screen layout (branding kiri, form kanan)
 ├── router/
-│   └── index.ts               # Vue Router + navigation guard
+│   ├── index.ts               # Vue Router + navigation guard
+│   └── routes/
+│       ├── auth.ts            # Auth routes (guest-only)
+│       └── protected.ts       # Protected routes (requiresAuth)
 ├── stores/
-│   ├── authStore.ts           # Pinia — access token, user data, deviceId
+│   ├── authStore.ts           # Pinia — access token (memory), user, refresh token (localStorage)
 │   └── errorStore.ts          # Pinia — global error modal state
 ├── types/
+│   ├── api.ts                 # Shared ApiResponse<T> generic type
 │   └── auth.ts                # TypeScript types request & response auth
 ├── views/
 │   ├── HomeView.vue
 │   └── auth/
 │       ├── LoginView.vue
 │       ├── RegisterView.vue
-│       ├── OtpVerificationView.vue  # dipakai untuk register & reset password
+│       ├── OtpVerificationView.vue  # Dipakai untuk register & reset password (via history.state.mode)
 │       ├── ForgotPasswordView.vue
 │       └── ResetPasswordView.vue
 └── components/
@@ -352,24 +352,24 @@ src/
 src/
 ├── config/
 │   ├── database.ts        # MongoDB connection
-│   └── mailer.ts          # Nodemailer SMTP setup
+│   └── mailer.ts          # Nodemailer Gmail setup
 ├── controllers/
 │   └── authController.ts  # Auth route handlers
 ├── middlewares/
 │   ├── authMiddleware.ts  # JWT verification + session check
 │   ├── errorHandler.ts    # Global error handler
-│   └── rateLimiter.ts     # Rate limit configs
+│   ├── rateLimiter.ts     # Rate limit configs per endpoint
+│   └── requestLogger.ts   # Log request method, url, payload & response (Asia/Jakarta)
 ├── models/
 │   ├── User.ts            # User mongoose model
-│   └── Session.ts         # Device session model
+│   └── Session.ts         # Device session model (TTL index)
 ├── routes/
 │   ├── index.ts
 │   └── authRoutes.ts      # Auth routes
 ├── templates/
-│   └── otpEmail.ts        # OTP email HTML template
+│   └── otpEmail.ts        # OTP email HTML template (verification & reset)
 ├── validations/
 │   └── authValidation.ts  # Zod schemas untuk auth endpoints
-├── types/                 # TypeScript types
 └── index.ts               # Entry point
 ```
 
@@ -379,19 +379,19 @@ src/
 
 ### Auth
 
-| Method | Endpoint                    | Description                        | Auth |
-|--------|-----------------------------|------------------------------------|------|
-| GET    | /api/health                 | Health check                       | -    |
-| POST   | /api/auth/register          | Register + send OTP to email       | -    |
-| POST   | /api/auth/verify-otp        | Verify OTP (account activation)    | -    |
-| POST   | /api/auth/resend-otp        | Resend OTP                         | -    |
+| Method | Endpoint                    | Description                                         | Auth |
+|--------|-----------------------------|-----------------------------------------------------|------|
+| GET    | /api/health                 | Health check                                        | -    |
+| POST   | /api/auth/register          | Register + send OTP to email                        | -    |
+| POST   | /api/auth/verify-otp        | Verify OTP (account activation)                     | -    |
+| POST   | /api/auth/resend-otp        | Resend OTP (60s cooldown)                           | -    |
 | POST   | /api/auth/login             | Login + device check, return access & refresh token | -    |
 | POST   | /api/auth/refresh           | Silent refresh — return new access token            | -    |
 | POST   | /api/auth/logout            | Logout, delete session                              | JWT  |
 | GET    | /api/auth/me                | Get current logged-in user data                     | JWT  |
-| POST   | /api/auth/forgot-password   | Send OTP for password reset        | -    |
-| POST   | /api/auth/verify-reset-otp  | Verify OTP for password reset      | -    |
-| POST   | /api/auth/reset-password    | Set new password                   | -    |
+| POST   | /api/auth/forgot-password   | Send OTP for password reset                         | -    |
+| POST   | /api/auth/verify-reset-otp  | Verify OTP for password reset                       | -    |
+| POST   | /api/auth/reset-password    | Set new password + delete all active sessions       | -    |
 
 > More endpoints will be added per phase.
 

@@ -1,14 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import type { User } from '@/types/auth';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'student' | 'instructor' | 'admin';
-}
-
+// Auth store — holds access token in memory and persists user/refresh data in localStorage
 export const useAuthStore = defineStore('auth', () => {
+  // Access token lives only in memory — cleared on page refresh (re-fetched via refresh token)
   const accessToken = ref<string | null>(null);
   const user = ref<User | null>(null);
 
@@ -33,6 +29,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('deviceId');
   }
 
+  // Called on app mount — restore user from localStorage before token is re-validated
   function loadFromStorage() {
     const storedUser = localStorage.getItem('user');
     if (storedUser) user.value = JSON.parse(storedUser);

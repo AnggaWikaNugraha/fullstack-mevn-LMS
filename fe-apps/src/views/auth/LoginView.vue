@@ -1,5 +1,73 @@
+<script setup lang="ts">
+import { Eye, EyeOff, Loader2 } from '@lucide/vue';
+import { useLogin } from '@/composables/auth/useLogin';
+
+const { email, password, errors, isPending, serverError, showPassword, onSubmit } = useLogin();
+</script>
+
 <template>
   <div>
-    <h2>Login</h2>
+    <div class="mb-8">
+      <h2 class="text-2xl font-bold text-gray-900">Welcome back</h2>
+      <p class="text-gray-500 text-sm mt-1">Sign in to your account to continue</p>
+    </div>
+
+    <div v-if="serverError" class="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-6 flex items-start gap-2">
+      <span class="mt-0.5 shrink-0">⚠</span>
+      <span>{{ serverError }}</span>
+    </div>
+
+    <form class="space-y-5" @submit="onSubmit">
+      <div class="space-y-1.5">
+        <label class="block text-sm font-medium text-gray-700">Email</label>
+        <input
+          v-model="email"
+          type="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          class="w-full px-4 py-3 rounded-xl border bg-gray-50 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition-all"
+          :class="errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'"
+        />
+        <p v-if="errors.email" class="text-red-500 text-xs">{{ errors.email }}</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <div class="flex justify-between items-center">
+          <label class="block text-sm font-medium text-gray-700">Password</label>
+          <RouterLink to="/auth/forgot-password" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+            Forgot password?
+          </RouterLink>
+        </div>
+        <div class="relative">
+          <input
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            placeholder="Enter your password"
+            autocomplete="current-password"
+            class="w-full px-4 py-3 pr-11 rounded-xl border bg-gray-50 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition-all"
+            :class="errors.password ? 'border-red-300 bg-red-50' : 'border-gray-300'"
+          />
+          <button type="button" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors" @click="showPassword = !showPassword">
+            <EyeOff v-if="showPassword" class="w-4 h-4" />
+            <Eye v-else class="w-4 h-4" />
+          </button>
+        </div>
+        <p v-if="errors.password" class="text-red-500 text-xs">{{ errors.password }}</p>
+      </div>
+
+      <button
+        type="submit"
+        :disabled="isPending"
+        class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 mt-2"
+      >
+        <Loader2 v-if="isPending" class="w-4 h-4 animate-spin" />
+        {{ isPending ? 'Signing in...' : 'Sign In' }}
+      </button>
+    </form>
+
+    <p class="text-center text-sm text-gray-500 mt-6">
+      Don't have an account?
+      <RouterLink to="/auth/register" class="text-indigo-600 font-semibold hover:text-indigo-700">Sign up</RouterLink>
+    </p>
   </div>
 </template>

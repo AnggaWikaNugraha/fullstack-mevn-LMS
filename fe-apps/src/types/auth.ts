@@ -1,0 +1,64 @@
+import type { ApiResponse } from './api';
+
+// ─── Request types (what FE sends to BE) ────────────────────────────────────
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface VerifyOtpPayload {
+  email: string;
+  otp: string;
+}
+
+export interface ResendOtpPayload {
+  email: string;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+  deviceId: string;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface VerifyResetOtpPayload {
+  email: string;
+  otp: string;
+}
+
+export interface ResetPasswordPayload {
+  email: string;
+  otp: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+// ─── Response types (what BE returns) ───────────────────────────────────────
+
+export interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: 'student' | 'instructor' | 'admin';
+  isVerified: boolean;
+  createdAt: string;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface LoginResponse extends ApiResponse<{
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+}> {}
+
