@@ -1,5 +1,5 @@
 <template>
   <div>
-    <h1>LMS Home</h1>
+    <h1>SkilLine Home</h1>
   </div>
 </template>

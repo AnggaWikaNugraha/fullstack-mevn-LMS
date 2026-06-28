@@ -16,7 +16,7 @@
       <div class="absolute -bottom-10 left-1/4 w-72 h-72 bg-indigo-700 rounded-full opacity-50"></div>
 
       <!-- Logo -->
-      <div class="relative z-10 text-xl font-bold tracking-tight">LMS</div>
+      <div class="relative z-10 text-xl font-bold tracking-tight">SkilLine</div>
 
       <!-- Headline -->
       <div class="relative z-10">
@@ -42,7 +42,7 @@
         </div>
       </div>
 
-      <p class="relative z-10 text-indigo-400 text-xs">© 2026 LMS. All rights reserved.</p>
+      <p class="relative z-10 text-indigo-400 text-xs">© 2026 SkilLine. All rights reserved.</p>
     </div>
 
     <!-- Right panel — form area -->
@@ -51,7 +51,7 @@
 
         <!-- Mobile-only logo -->
         <div class="lg:hidden text-center mb-10">
-          <span class="text-2xl font-bold text-indigo-600">LMS</span>
+          <span class="text-2xl font-bold text-indigo-600">SkilLine</span>
         </div>
 
         <!-- Form card -->
@@ -59,7 +59,7 @@
           <RouterView />
         </div>
 
-        <p class="text-center text-xs text-gray-400 mt-6">© 2026 LMS. All rights reserved.</p>
+        <p class="text-center text-xs text-gray-400 mt-6">© 2026 SkilLine. All rights reserved.</p>
       </div>
     </div>
 

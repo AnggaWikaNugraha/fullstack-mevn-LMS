@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
 
 export const sendMail = async (to: string, subject: string, html: string): Promise<void> => {
   await transporter.sendMail({
-    from: `"LMS App" <${process.env.SMTP_USER}>`,
+    from: `"SkilLine" <${process.env.SMTP_USER}>`,
     to,
     subject,
     html,
