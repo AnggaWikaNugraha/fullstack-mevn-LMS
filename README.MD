@@ -77,7 +77,7 @@ User fills form (name, email, password) → submit
         ↓
 BE: validate input (Zod)
         ↓
-BE: check email exists?
+BE: check if email exists?
   → isVerified: true  → error "Email already registered"
   → isVerified: false → delete old account, create new
         ↓
@@ -103,29 +103,29 @@ FE: redirect to [Login Page]
 ```
 
 **Edge Cases:**
-- Email already registered & verified → reject with error
-- Email registered but unverified → replace account & resend OTP
+- Email already registered and verified → reject with error
+- Email registered but unverified → replace account and resend OTP
 - OTP expired → user must click resend (not re-register)
-- Resend OTP → BE enforces 60s cooldown (rate-limited), regenerate OTP & resend email
+- Resend OTP → BE enforces 60s cooldown (rate-limited), regenerate OTP and resend email
 - Brute force OTP → rate limiting on `/verify-otp` endpoint
 
 **BE Tasks:**
 - [x] User model (`name`, `email`, `password`, `role`, `isVerified`, `otp`, `otpExpires`, `otpLastSentAt`)
-- [x] Zod validation schema untuk register, verify OTP, resend OTP
+- [x] Zod validation schema for register, verify OTP, resend OTP
 - [x] Email service config (Nodemailer SMTP setup)
-- [x] Template email OTP (konten email yang dikirim ke user)
-- [x] `POST /api/auth/register` — validasi input, cek email, buat user, generate OTP, kirim email
-- [x] `POST /api/auth/verify-otp` — cek OTP + expiry, tandai akun sebagai verified
-- [x] `POST /api/auth/resend-otp` — enforce cooldown 60s, generate OTP baru, kirim ulang email
-- [x] Rate limit pada `/verify-otp` & `/resend-otp`
+- [x] OTP email template (HTML email sent to user)
+- [x] `POST /api/auth/register` — validate input, check email, create user, generate OTP, send email
+- [x] `POST /api/auth/verify-otp` — check OTP + expiry, mark account as verified
+- [x] `POST /api/auth/resend-otp` — enforce 60s cooldown, generate new OTP, resend email
+- [x] Rate limit on `/verify-otp` & `/resend-otp`
 
 **FE Tasks:**
-- [x] Zod schema validasi register (nama, email, password, konfirmasi password)
-- [x] API service `src/api/auth.ts` — fungsi `register()`, `verifyOtp()`, `resendOtp()`
-- [x] `/auth/register` — halaman form pendaftaran (VeeValidate + Zod)
-- [x] `/auth/verify-otp` — halaman input OTP (6-digit, resend countdown 60s)
-- [x] Handle error response dari BE (email sudah terdaftar, OTP invalid/expired)
-- [x] Loading state saat submit form (`isPending` dari TanStack Query `useMutation`)
+- [x] Zod schema for register validation (name, email, password, confirm password)
+- [x] API service `src/api/auth.ts` — `register()`, `verifyOtp()`, `resendOtp()`
+- [x] `/auth/register` — registration form page (VeeValidate + Zod)
+- [x] `/auth/verify-otp` — OTP input page (6-digit, 60s resend countdown)
+- [x] Handle error responses from BE (email already registered, OTP invalid/expired)
+- [x] Loading state on form submit (`isPending` from TanStack Query `useMutation`)
 
 ---
 
@@ -134,10 +134,10 @@ FE: redirect to [Login Page]
 **Rule: 1 account = 1 active device at a time (Web or Mobile)**
 
 **Token Strategy:**
-| Token         | Expiry         | Keterangan                                      |
-|---------------|----------------|-------------------------------------------------|
-| Access Token  | 15 menit       | Dipakai untuk request ke API                    |
-| Refresh Token | 1 hari (fixed) | Dipakai untuk minta access token baru. Tidak diperpanjang meski aktif. Setelah 1 hari harus login ulang. |
+| Token         | Expiry         | Description                                                                                                  |
+|---------------|----------------|--------------------------------------------------------------------------------------------------------------|
+| Access Token  | 15 minutes     | Used for all API requests                                                                                    |
+| Refresh Token | 1 day (fixed)  | Used to request a new access token. Not extended on activity. After 1 day the user must log in again.       |
 
 ![Login](docs/auth%20-%20login.png)
 
@@ -150,32 +150,32 @@ BE: validate input (Zod)
         ↓
 BE: check credentials + isVerified
         ↓
-BE: check active Session for this user
-  → no session                      → buat session baru
+BE: check active session for this user
+  → no session                      → create new session
   → session exists
-      → refresh token expired        → hapus session lama, buat session baru (auto)
-      → same deviceId               → hapus session lama, buat session baru, return token baru
+      → refresh token expired        → delete old session, create new session (auto)
+      → same deviceId               → delete old session, create new session, return new tokens
       → different device            → reject: "Account is active on another device. Please logout first."
         ↓
-BE: return access token (15m) + refresh token (1 hari fixed)
+BE: return access token (15 min) + refresh token (1 day fixed)
         ↓
-FE: simpan access token di Pinia (memory), refresh token di localStorage
+FE: store access token in Pinia (memory), refresh token in localStorage
         ↓
 FE: redirect to [Dashboard]
 
---- saat access token expired (15 menit) ---
+--- when access token expires (15 minutes) ---
 
-FE: kirim refresh token ke BE (silent, di background)
+FE: send refresh token to BE (silent, in background)
         ↓
-BE: cek refresh token valid + belum expired + deviceId sama
+BE: validate refresh token + not expired + same deviceId
         ↓
-BE: return access token baru (15m)
+BE: return new access token (15 min)
         ↓
-FE: lanjut pakai app, user tidak sadar
+FE: continue using the app, user is unaware
 
---- setelah 1 hari ---
+--- after 1 day ---
 
-Refresh token expired → FE paksa logout → redirect ke login
+Refresh token expired → FE force logout → redirect to login
 ```
 
 **Device ID:**
@@ -187,38 +187,38 @@ Refresh token expired → FE paksa logout → redirect ke login
 ```
 userId            → ref to User
 deviceId          → string (unique per device)
-refreshToken      → string (hashed dengan bcrypt)
-refreshExpiredAt  → Date (fixed 1 hari sejak login)
+refreshToken      → string (hashed with bcrypt)
+refreshExpiredAt  → Date (fixed 1 day from login)
 createdAt         → Date
 ```
 
 **Edge Cases:**
 - No active session → login allowed
-- Same device, refresh token still valid → perbarui access token
-- Different device, refresh token still valid → reject dengan error
-- Different device, refresh token expired → hapus session lama otomatis, login diizinkan
-- Refresh token expired → paksa logout, redirect ke login
+- Same device, refresh token still valid → issue new access token
+- Different device, refresh token still valid → reject with error
+- Different device, refresh token expired → auto-delete old session, login allowed
+- Refresh token expired → force logout, redirect to login
 
 **BE Tasks:**
 - [x] Session model (`userId`, `deviceId`, `refreshToken`, `refreshExpiredAt`, `createdAt`)
-- [x] Zod validation schema untuk login
-- [x] `POST /api/auth/login` — validasi kredensial, cek session, hash refresh token, return access token + refresh token
-- [x] `POST /api/auth/refresh` — validasi refresh token, cek session, return access token baru
-- [x] `POST /api/auth/logout` — hapus session berdasarkan deviceId
-- [x] `GET /api/auth/me` — return data user yang sedang login (butuh access token)
-- [x] Auth middleware — verifikasi access token + cek session aktif di DB
-- [x] Rate limit pada `/login`
+- [x] Zod validation schema for login
+- [x] `POST /api/auth/login` — validate credentials, check session, hash refresh token, return access token + refresh token
+- [x] `POST /api/auth/refresh` — validate refresh token, check session, return new access token
+- [x] `POST /api/auth/logout` — delete session by deviceId
+- [x] `GET /api/auth/me` — return currently logged-in user data (requires access token)
+- [x] Auth middleware — verify access token + check active session in DB
+- [x] Rate limit on `/login`
 
 **FE Tasks:**
-- [x] Zod schema validasi login (email, password)
-- [x] Generate UUID deviceId saat pertama kali buka app, simpan di localStorage (`useDeviceId` composable)
-- [x] API service `src/api/auth.ts` — fungsi `login()`, `refresh()`, `logout()`, `getMe()`
-- [x] `/auth/login` — halaman form login (VeeValidate + Zod)
-- [x] Pinia authStore — simpan access token di memory, refresh token + user data + deviceId di localStorage
-- [x] Load user data via `getMe()` saat app pertama dibuka (jika token masih valid)
-- [x] Axios interceptor — auto silent refresh saat access token expired (401)
-- [x] Handle error "akun aktif di perangkat lain" dengan pesan yang jelas
-- [x] Loading state saat submit form (`isPending` dari TanStack Query `useMutation`)
+- [x] Zod schema for login validation (email, password)
+- [x] Generate UUID deviceId on first app open, store in localStorage (`useDeviceId` composable)
+- [x] API service `src/api/auth.ts` — `login()`, `refresh()`, `logout()`, `getMe()`
+- [x] `/auth/login` — login form page (VeeValidate + Zod)
+- [x] Pinia authStore — store access token in memory, refresh token + user data + deviceId in localStorage
+- [x] Load user data via `getMe()` on app startup (if token is still valid)
+- [x] Axios interceptor — auto silent refresh when access token expires (401)
+- [x] Handle "account active on another device" error with a clear message
+- [x] Loading state on form submit (`isPending` from TanStack Query `useMutation`)
 
 ---
 
@@ -232,8 +232,8 @@ createdAt         → Date
 [Forgot Password Page]
 User inputs email → submit
         ↓
-BE: check email exists + generate OTP + send email
-  (selalu return 200 meski email tidak ada — cegah email enumeration)
+BE: check if email exists + generate OTP + send email
+  (always returns 200 even if email not found — prevents email enumeration)
         ↓
 FE: redirect to [OTP Verification Page] (reset mode, pass email via router state)
         ↓
@@ -250,28 +250,28 @@ FE: redirect to [Reset Password Page] (pass email + otp via router state)
 [Reset Password Page]
 User inputs new password + confirm password → submit
         ↓
-BE: re-validate OTP (cegah skip halaman verify)
+BE: re-validate OTP (prevents skipping the verify step)
         ↓
-BE: update password + hapus semua session aktif (force logout semua device)
+BE: update password + delete all active sessions (force logout all devices)
         ↓
-FE: tampilkan success state → redirect to [Login Page]
+FE: show success state → redirect to [Login Page]
 ```
 
 **BE Tasks:**
-- [x] Zod validation schema untuk forgot password, verify reset OTP, reset password
-- [x] `POST /api/auth/forgot-password` — cek email terdaftar, generate OTP, kirim email
-- [x] `POST /api/auth/verify-reset-otp` — validasi OTP untuk reset password
-- [x] `POST /api/auth/reset-password` — validasi password baru (min length, konfirmasi), update password, hapus semua session aktif
-- [x] Rate limit pada `/forgot-password`
+- [x] Zod validation schema for forgot password, verify reset OTP, reset password
+- [x] `POST /api/auth/forgot-password` — check email exists, generate OTP, send email
+- [x] `POST /api/auth/verify-reset-otp` — validate OTP for password reset
+- [x] `POST /api/auth/reset-password` — validate new password (min length, confirm match), update password, delete all active sessions
+- [x] Rate limit on `/forgot-password`
 
 **FE Tasks:**
-- [x] Zod schema validasi (email, OTP, password baru + konfirmasi password)
-- [x] API service `src/api/auth.ts` — fungsi `forgotPassword()`, `verifyResetOtp()`, `resetPassword()`
-- [x] `/auth/forgot-password` — halaman input email
-- [x] `/auth/verify-otp` — dipakai ulang dalam mode reset (bukan halaman baru, dibedakan via `history.state.mode`)
-- [x] `/auth/reset-password` — halaman input password baru + konfirmasi, success state dengan redirect otomatis
-- [x] Handle error response dari BE
-- [x] Loading state saat submit form (`isPending` dari TanStack Query `useMutation`)
+- [x] Zod schema validation (email, OTP, new password + confirm password)
+- [x] API service `src/api/auth.ts` — `forgotPassword()`, `verifyResetOtp()`, `resetPassword()`
+- [x] `/auth/forgot-password` — email input page
+- [x] `/auth/verify-otp` — reused in reset mode (not a new page, differentiated via `history.state.mode`)
+- [x] `/auth/reset-password` — new password + confirm password page, success state with auto redirect
+- [x] Handle error responses from BE
+- [x] Loading state on form submit (`isPending` from TanStack Query `useMutation`)
 
 ---
 
@@ -279,32 +279,32 @@ FE: tampilkan success state → redirect to [Login Page]
 
 **FE Tasks:**
 - [x] `src/api/client.ts` — Axios instance + interceptors (silent refresh, global error modal)
-- [x] `src/api/auth.ts` — semua API call auth terkumpul dalam satu file
+- [x] `src/api/auth.ts` — all auth API calls in one file
 - [x] `src/types/api.ts` — shared `ApiResponse<T>` generic type
-- [x] `src/types/auth.ts` — TypeScript types untuk semua request & response auth
-- [x] Router guard (navigation guard) — redirect ke `/auth/login` jika belum auth, redirect ke `/` jika sudah auth
-- [x] `src/composables/useDeviceId.ts` — composable untuk generate & baca UUID deviceId
-- [x] `src/composables/auth/` — semua logic auth di-extract ke composable (Vue equivalent of React custom hooks)
+- [x] `src/types/auth.ts` — TypeScript types for all auth requests & responses
+- [x] Router guard (navigation guard) — redirect to `/auth/login` if unauthenticated, redirect to `/` if already authenticated
+- [x] `src/composables/useDeviceId.ts` — composable to generate and read UUID deviceId
+- [x] `src/composables/auth/` — all auth logic extracted into composables (Vue equivalent of React custom hooks)
 
 ---
 
 #### 1.5 Global FE — Error Handling
 
-**Aturan penanganan error:**
+**Error handling rules:**
 
-| Jenis Error         | Contoh                          | Handler                          |
-|---------------------|---------------------------------|----------------------------------|
-| Network error       | Tidak ada internet, timeout     | Modal global                     |
-| Server error (5xx)  | Server crash, maintenance       | Modal global                     |
-| Auth error (401)    | Token expired                   | Silent refresh → gagal → redirect login |
-| Validation error (400) | Email salah format           | Inline di form                   |
-| Not found (404)     | Data tidak ditemukan            | Inline di form                   |
+| Error Type          | Example                         | Handler                                     |
+|---------------------|---------------------------------|---------------------------------------------|
+| Network error       | No internet, timeout            | Global modal                                |
+| Server error (5xx)  | Server crash, maintenance       | Global modal                                |
+| Auth error (401)    | Token expired                   | Silent refresh → if failed → redirect login |
+| Validation error (400) | Invalid email format         | Inline in form                              |
+| Not found (404)     | Data not found                  | Inline in form                              |
 
 **FE Tasks:**
-- [x] `src/stores/errorStore.ts` — Pinia store untuk state error global
-- [x] `src/components/ui/GlobalErrorModal.vue` — modal error yang dipasang di `App.vue`
-- [x] `src/api/client.ts` — Axios interceptor tangkap network error & 5xx, trigger errorStore
-- [x] `App.vue` — pasang `GlobalErrorModal` di root app
+- [x] `src/stores/errorStore.ts` — Pinia store for global error state
+- [x] `src/components/ui/GlobalErrorModal.vue` — error modal mounted in `App.vue`
+- [x] `src/api/client.ts` — Axios interceptor catches network errors & 5xx, triggers errorStore
+- [x] `App.vue` — mounts `GlobalErrorModal` at root
 
 ---
 
@@ -334,10 +334,10 @@ FE: tampilkan success state → redirect to [Login Page]
 src/
 ├── api/
 │   ├── client.ts              # Axios instance + interceptors (silent refresh)
-│   └── auth.ts                # Semua API call auth
+│   └── auth.ts                # All auth API calls
 ├── composables/
-│   ├── useDeviceId.ts         # Generate & baca UUID deviceId
-│   └── auth/                  # Auth composables (logic dipisah dari view)
+│   ├── useDeviceId.ts         # Generate and read UUID deviceId
+│   └── auth/                  # Auth composables (logic separated from views)
 │       ├── useLogin.ts
 │       ├── useRegister.ts
 │       ├── useOtpVerification.ts
@@ -345,7 +345,7 @@ src/
 │       └── useResetPassword.ts
 ├── layouts/
 │   ├── DefaultLayout.vue
-│   └── AuthLayout.vue         # Split-screen layout (branding kiri, form kanan)
+│   └── AuthLayout.vue         # Split-screen layout (branding left, form right)
 ├── router/
 │   ├── index.ts               # Vue Router + navigation guard
 │   └── routes/
@@ -356,18 +356,18 @@ src/
 │   └── errorStore.ts          # Pinia — global error modal state
 ├── types/
 │   ├── api.ts                 # Shared ApiResponse<T> generic type
-│   └── auth.ts                # TypeScript types request & response auth
+│   └── auth.ts                # TypeScript types for auth requests & responses
 ├── views/
 │   ├── HomeView.vue
 │   └── auth/
 │       ├── LoginView.vue
 │       ├── RegisterView.vue
-│       ├── OtpVerificationView.vue  # Dipakai untuk register & reset password (via history.state.mode)
+│       ├── OtpVerificationView.vue  # Used for both register and reset password (via history.state.mode)
 │       ├── ForgotPasswordView.vue
 │       └── ResetPasswordView.vue
 └── components/
     └── ui/
-        └── GlobalErrorModal.vue  # Modal error global (network / server error)
+        └── GlobalErrorModal.vue  # Global error modal (network / server errors)
 ```
 
 ### Backend (`be-server/src/`)
@@ -393,7 +393,7 @@ src/
 ├── templates/
 │   └── otpEmail.ts        # OTP email HTML template (verification & reset)
 ├── validations/
-│   └── authValidation.ts  # Zod schemas untuk auth endpoints
+│   └── authValidation.ts  # Zod schemas for auth endpoints
 └── index.ts               # Entry point
 ```
 
