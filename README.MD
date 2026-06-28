@@ -422,18 +422,25 @@ User inputs new password + confirm password → submit
 **Flow:**
 
 ```
-[Landing Page / Home]
 User opens app (logged in or not)
-        ↓
-FE: fetch all courses + fetch all topics in parallel
-        ↓
-FE: display hero slider + course cards (horizontal scroll)
-        ↓
-User clicks a topic pill → filter courses by topic (client-side)
-        ↓
-User clicks a course card
-        ↓
-FE: redirect to [Course Detail Page]
+          |
+          ▼
+    GET /api/courses + GET /api/courses/topics  (parallel)
+          |
+          ▼
+    FE: display hero slider + course cards (horizontal scroll)
+        + topic filter pills
+          |
+          ├─→ User clicks a topic pill
+          |         |
+          |         ▼
+          |   FE: filter courses client-side (no refetch)
+          |   FE: update displayed cards
+          |
+          └─→ User clicks a course card
+                    |
+                    ▼
+              FE: redirect to [Course Detail Page]
 ```
 
 **Course Access Model: Free + Paid**
@@ -493,32 +500,79 @@ Course
                     └── Video (embedded — title, description, video_url)
 ```
 
-**Flow:**
+**Course Detail Flow:**
 
 ```
-[Course Detail Page] /courses/:id
-        ↓
-FE: fetch course detail (includes modules → chapters → lessons)
-        ↓
-FE: display course info (cover, title, description, level, progress bar)
-    + sidebar: Module accordion → Chapter → Lesson list
-        ↓
-User clicks a lesson
-  → is_locked: true  → show "complete previous lesson first" message
-  → is_locked: false → load lesson content
-        ↓
-  type: "video" → display YouTube iframe + title + description
-  type: "quiz"  → display quiz questions (Phase 3)
-        ↓
+User navigates to /courses/:id
+          |
+          ▼
+    GET /api/courses/:id
+    (returns course + modules → chapters → lessons with is_done + is_locked)
+          |
+          ▼
+    FE: display course info (cover, title, level, progress bar)
+        + sidebar: Module accordion → Chapter → Lesson list
+          |
+          ▼
+    FE: auto-select first incomplete + unlocked lesson
+          |
+          ▼
+    User clicks a lesson in sidebar
+          |
+          ├─→ is_locked: true
+          |         |
+          |         ▼
+          |   FE: show locked overlay
+          |   "Complete the previous lesson first"
+          |
+          └─→ is_locked: false
+                    |
+                    ├─→ type: "video"
+                    |         |
+                    |         ▼
+                    |   FE: display YouTube iframe
+                    |       + lesson title + description
+                    |
+                    └─→ type: "quiz"
+                              |
+                              ▼
+                        FE: display quiz questions (Phase 3)
+```
+
+**Video Progress Flow:**
+
+```
 Video ends → "Next Lesson" button appears
-        ↓
-User clicks "Next Lesson"
-  → if lesson not yet done → POST update-progress (mark as complete)
-  → if already done        → directly go to next lesson
-        ↓
-BE: record progress (userId + lessonId)
-        ↓
-FE: update is_done in sidebar + unlock next lesson + recalculate progress %
+          |
+          ▼
+    User clicks "Next Lesson"
+          |
+          ├─→ Lesson already done (is_done: true)
+          |         |
+          |         ▼
+          |   FE: navigate directly to next lesson
+          |
+          └─→ Lesson not yet done
+                    |
+                    ▼
+              POST /api/courses/update-progress  { lesson_id }  (requires auth)
+                    |
+                    ├─→ Not authenticated    → show "Login to save progress" modal
+                    |
+                    └─→ Success
+                              |
+                              ▼
+                        BE: save Progress record
+                        BE: unlock next lesson (set is_locked: false)
+                              |
+                              ▼
+                        FE: refetch course detail
+                        FE: tick is_done in sidebar
+                        FE: navigate to next lesson
+                              |
+                        (if last lesson)
+                              ▼
+                        FE: show "Course Completed!" modal
 ```
 
 **Video Hosting: YouTube (unlisted)**
@@ -591,20 +645,59 @@ completedAt   → Date
 
 ---
 
-#### 2.3 Bootcamp List
+#### 2.3 Bootcamp List & Detail
 
-**Flow:**
+**Bootcamp List Flow:**
 
 ```
-[Landing Page / Home — Bootcamp Section]
-        ↓
-FE: fetch all bootcamps
-        ↓
-FE: display bootcamp cards (title, cover, schedule, price, seats)
-        ↓
-User clicks a bootcamp card
-        ↓
-FE: redirect to [Bootcamp Detail Page]
+User opens landing page (bootcamp section)
+          |
+          ▼
+    GET /api/bootcamps  (pagination + ?status= + search)
+          |
+          ▼
+    FE: display bootcamp cards (image, title, status badge, starting price)
+          |
+          └─→ User clicks a bootcamp card
+                    |
+                    ▼
+              FE: redirect to [Bootcamp Detail Page]
+```
+
+**Bootcamp Detail Flow:**
+
+```
+User navigates to /bootcamps/:id
+          |
+          ▼
+    GET /api/bootcamps/:id
+    (returns package + mentors + batches → sessions)
+          |
+          ▼
+    FE: display package info (image, title, description, mentors)
+        + batch tabs (Batch 1, Batch 2, ...)
+        + session schedule of active batch
+          |
+          ▼
+    User selects a batch tab
+          |
+          ▼
+    FE: switch session list (client-side, no refetch)
+          |
+          ▼
+    User clicks "Register Now"
+          |
+          ├─→ Not logged in
+          |         |
+          |         ▼
+          |   FE: save redirect info to localStorage
+          |   FE: redirect to [Login Page]
+          |
+          └─→ Logged in
+                    |
+                    ▼
+              FE: open registration modal
+              (show selected batch info + price)
 ```
 
 **Bootcamp Hierarchy (matches reference):**
