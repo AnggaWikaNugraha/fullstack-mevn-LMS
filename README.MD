@@ -310,7 +310,277 @@ FE: show success state → redirect to [Login Page]
 
 ### Phase 2 — Courses & Bootcamp
 
-> Coming Soon
+#### 2.1 Course List (Landing Page)
+
+**Flow:**
+
+```
+[Landing Page / Home]
+User opens app (logged in or not)
+        ↓
+FE: fetch all courses + fetch all topics in parallel
+        ↓
+FE: display hero slider + course cards (horizontal scroll)
+        ↓
+User clicks a topic pill → filter courses by topic (client-side)
+        ↓
+User clicks a course card
+        ↓
+FE: redirect to [Course Detail Page]
+```
+
+**Course Access Model: Free + Paid**
+- `isFree: true` — anyone can watch without login
+- `isFree: false` — requires active subscription or one-time purchase (Phase 4)
+- Course list is always visible to everyone; only video playback is gated
+
+**Data Model — Course:**
+```
+title            → string (required)
+description      → string
+cover_url        → string (image URL)
+topic            → string (slug, e.g. "web-dev")
+topic_name       → string (display name, e.g. "Web Development")
+level            → enum: beginner | intermediate | advanced
+isFree           → boolean (true = open access, false = requires subscription/purchase)
+video_amount     → number (total video count — displayed on course card)
+total_lessons    → number (auto-calculated from Lesson count)
+course_duration  → number (total duration of all videos in seconds)
+createdAt        → Date
+```
+
+**Data Model — Topic:**
+```
+topic         → string (unique slug, e.g. "web-dev") — matches Course.topic
+topic_name    → string (display name, e.g. "Web Development") — matches Course.topic_name
+```
+
+> Topics are not a separate collection — `/api/courses/topics` aggregates distinct `topic` + `topic_name` values from the Course collection.
+
+**BE Tasks:**
+- [ ] Course model (`title`, `description`, `cover_url`, `topic`, `topic_name`, `level`, `isFree`, `video_amount`, `total_lessons`, `course_duration`)
+- [ ] No separate Topic model — topics are aggregated from Course (`distinct topic + topic_name`)
+- [ ] Zod validation schema for course
+- [ ] `GET /api/courses` — list all courses, support optional `?topic=` query filter + pagination
+- [ ] `GET /api/courses/topics` — list all unique topics
+- [ ] Seed script — populate sample courses, topics, and lessons for development (admin panel will be added in a later phase)
+
+**FE Tasks:**
+- [ ] API service `src/api/courses.ts` — `getCourses()`, `getTopics()`
+- [ ] TanStack Query `useQuery` for courses and topics (not `useMutation` — these are GET requests)
+- [ ] `/` (HomeView) — hero slider + course card row + topic filter pills + filtered course row
+- [ ] `CourseCard.vue` component — cover image, title, lesson count, topic badge
+- [ ] Skeleton loading state for cards and topic pills
+- [ ] Topic filter — client-side filter on already-fetched data (no refetch on pill click)
+
+---
+
+#### 2.2 Course Detail + Video Player
+
+**Content Hierarchy (matches reference):**
+```
+Course
+  └── Module        (e.g. "Fundamentals", "Advanced Topics")
+        └── Chapter  (e.g. "Intro to Vue", "State Management")
+              └── Lesson (type: video | quiz)
+                    └── Video (embedded — title, description, video_url)
+```
+
+**Flow:**
+
+```
+[Course Detail Page] /courses/:id
+        ↓
+FE: fetch course detail (includes modules → chapters → lessons)
+        ↓
+FE: display course info (cover, title, description, level, progress bar)
+    + sidebar: Module accordion → Chapter → Lesson list
+        ↓
+User clicks a lesson
+  → is_locked: true  → show "complete previous lesson first" message
+  → is_locked: false → load lesson content
+        ↓
+  type: "video" → display YouTube iframe + title + description
+  type: "quiz"  → display quiz questions (Phase 3)
+        ↓
+Video ends → "Next Lesson" button appears
+        ↓
+User clicks "Next Lesson"
+  → if lesson not yet done → POST update-progress (mark as complete)
+  → if already done        → directly go to next lesson
+        ↓
+BE: record progress (userId + lessonId)
+        ↓
+FE: update is_done in sidebar + unlock next lesson + recalculate progress %
+```
+
+**Video Hosting: YouTube (unlisted)**
+- Videos uploaded to YouTube as unlisted
+- `video_url` stores the full embed URL: `https://www.youtube.com/embed/{id}`
+- No server storage or bandwidth cost — can migrate to Cloudinary/Mux later
+
+**Data Model — Module:**
+```
+courseId         → ref to Course
+title            → string
+order            → number
+module_duration  → number (sum of all lesson durations in module, in seconds)
+```
+
+**Data Model — Chapter:**
+```
+moduleId      → ref to Module
+title         → string
+order         → number
+chapter_duration → number (sum of lesson durations, in seconds)
+```
+
+**Data Model — Lesson:**
+```
+chapterId     → ref to Chapter
+moduleId      → ref to Module (denormalized for easier queries)
+courseId      → ref to Course (denormalized)
+title         → string
+type          → enum: "video" | "quiz"
+order         → number
+time          → number (duration in seconds)
+is_locked     → boolean (true = must complete previous lesson first)
+bonus         → number (optional — coins/points reward)
+video         → embedded object (only if type = "video"):
+  title         → string
+  description   → string (HTML)
+  video_url     → string (full YouTube embed URL)
+  duration      → number (in seconds)
+  topic         → string
+```
+
+**Data Model — Progress:**
+```
+userId        → ref to User
+lessonId      → ref to Lesson
+courseId      → ref to Course (denormalized)
+completedAt   → Date
+```
+> Unique index on `[userId, lessonId]` — one record per user per lesson.
+
+**BE Tasks:**
+- [ ] Module model (`courseId`, `title`, `order`, `module_duration`)
+- [ ] Chapter model (`moduleId`, `title`, `order`, `chapter_duration`)
+- [ ] Lesson model (`chapterId`, `moduleId`, `courseId`, `title`, `type`, `order`, `time`, `is_locked`, `bonus`, `video`)
+- [ ] Progress model (`userId`, `lessonId`, `courseId`, `completedAt`) — unique index on `[userId, lessonId]`
+- [ ] `GET /api/courses/:id` — course detail + nested modules → chapters → lessons (with `is_done` + `is_locked` per lesson if authenticated)
+- [ ] `POST /api/courses/update-progress` — mark lesson as complete (`{ lesson_id }` in body), requires auth
+- [ ] `GET /api/courses/:id/progress` — completed lesson count + total lessons for a course
+- [ ] Seed script — sample modules, chapters, lessons, and videos
+
+**FE Tasks:**
+- [ ] API service `src/api/courses.ts` — `getCourseDetail()`, `updateProgress()`, `getCourseProgress()`
+- [ ] `/courses/:id` — course detail page with video player + sidebar
+- [ ] `CourseSidebar.vue` — Module accordion → Chapter → Lesson list (show is_done tick, is_locked icon, active state)
+- [ ] `VideoPlayer.vue` — YouTube embed via iframe, fires `onEnded` event when video finishes
+- [ ] `CourseHeader.vue` — course title + progress bar (completed / total lessons)
+- [ ] "Next Lesson" button — appears after video ends; calls `updateProgress()` if not yet done, then navigates to next lesson
+- [ ] Lesson locking — if `is_locked: true`, show tooltip "Complete the previous lesson first"
+
+---
+
+#### 2.3 Bootcamp List
+
+**Flow:**
+
+```
+[Landing Page / Home — Bootcamp Section]
+        ↓
+FE: fetch all bootcamps
+        ↓
+FE: display bootcamp cards (title, cover, schedule, price, seats)
+        ↓
+User clicks a bootcamp card
+        ↓
+FE: redirect to [Bootcamp Detail Page]
+```
+
+**Bootcamp Hierarchy (matches reference):**
+```
+BootcampPackage     (e.g. "Bootcamp Web Development")
+  └── BootcampBatch (e.g. "Batch 1", "Batch 2") — same bootcamp opens multiple times
+        └── BootcampSession (e.g. "Session 1 - Intro") — individual meeting schedule
+```
+
+**Data Model — BootcampPackage:**
+```
+title         → string
+description   → string
+image_url     → string
+status        → string (e.g. "open", "closed", "coming_soon")
+mentors       → array of embedded objects:
+  name          → string
+  image_url     → string
+  occupation    → string
+batches       → ref to BootcampBatch[]
+```
+
+**Data Model — BootcampBatch:**
+```
+packageId         → ref to BootcampPackage
+title             → string (e.g. "Batch 1")
+sub_title         → string
+description       → string
+started_at        → Date
+ended_at          → Date
+quota_used_percentage → number (0–100)
+price               → number
+strikethrough_price → number (original price shown with strikethrough when discounted)
+package_type      → string (e.g. "online", "offline", "hybrid")
+sessions          → ref to BootcampSession[]
+```
+
+**Data Model — BootcampSession:**
+```
+batchId           → ref to BootcampBatch
+title             → string
+session_name      → string
+session_date      → Date
+session_start_time → string (e.g. "09:00")
+session_end_time   → string (e.g. "12:00")
+```
+
+**BE Tasks:**
+- [ ] BootcampPackage model (`title`, `description`, `image_url`, `status`, `mentors[]`)
+- [ ] BootcampBatch model (`packageId`, `title`, `sub_title`, `description`, `started_at`, `ended_at`, `quota_used_percentage`, `price`, `strikethrough_price`, `package_type`)
+- [ ] BootcampSession model (`batchId`, `title`, `session_name`, `session_date`, `session_start_time`, `session_end_time`)
+- [ ] `GET /api/bootcamps` — list all packages with pagination + search + `?status=` + `?sort_type=` + `?order_by=`
+- [ ] `GET /api/bootcamps/:id` — package detail with nested batches and sessions
+- [ ] Seed script — populate sample bootcamp packages, batches, and sessions
+
+**FE Tasks:**
+- [ ] API service `src/api/bootcamps.ts` — `getBootcamps()`, `getBootcampDetail()`
+- [ ] Bootcamp section on landing page — card grid (image, title, status badge, price from first open batch)
+- [ ] `BootcampCard.vue` — image, title, status badge, starting price
+- [ ] `/bootcamps/:id` — package detail page (info + batch list with sessions + CTA per batch)
+- [ ] Skeleton loading state
+- [ ] Pagination + search support on bootcamp list
+
+---
+
+#### 2.4 Company Profile Section (Static)
+
+**No BE needed — FE only.**
+
+```
+[Landing Page — About / Benefits Section]
+
+3 highlight blocks (alternating image ↔ text layout):
+  1. Bootcamp "Learn by Doing" — real project experience + job placement
+  2. Personal Mentor — guided learning with a dedicated mentor
+  3. Diverse Courses — wide range of topics available
+
++ Footer — logo, nav links (Courses, Bootcamp, For Business), social media icons
+```
+
+**FE Tasks:**
+- [ ] `BenefitsSection.vue` — 3 alternating image + text blocks, static content
+- [ ] `AppFooter.vue` — logo, navigation links, social media icons (TikTok, LinkedIn, Instagram, X)
 
 ### Phase 3 — Quiz & Task
 
@@ -334,31 +604,44 @@ FE: show success state → redirect to [Login Page]
 src/
 ├── api/
 │   ├── client.ts              # Axios instance + interceptors (silent refresh)
-│   └── auth.ts                # All auth API calls
+│   ├── auth.ts                # All auth API calls
+│   ├── courses.ts             # Course + lesson + progress API calls
+│   └── bootcamps.ts           # Bootcamp API calls
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
-│   └── auth/                  # Auth composables (logic separated from views)
-│       ├── useLogin.ts
-│       ├── useRegister.ts
-│       ├── useOtpVerification.ts
-│       ├── useForgotPassword.ts
-│       └── useResetPassword.ts
+│   ├── auth/                  # Auth composables (logic separated from views)
+│   │   ├── useLogin.ts
+│   │   ├── useRegister.ts
+│   │   ├── useOtpVerification.ts
+│   │   ├── useForgotPassword.ts
+│   │   └── useResetPassword.ts
+│   └── courses/               # Course composables
+│       ├── useCourses.ts      # useQuery for course list + topic filter
+│       ├── useCourseDetail.ts # useQuery for course detail + lesson list
+│       └── useProgress.ts     # useMutation for mark lesson complete
 ├── layouts/
-│   ├── DefaultLayout.vue
+│   ├── DefaultLayout.vue      # Layout with Navbar + Footer
 │   └── AuthLayout.vue         # Split-screen layout (branding left, form right)
 ├── router/
 │   ├── index.ts               # Vue Router + navigation guard
 │   └── routes/
 │       ├── auth.ts            # Auth routes (guest-only)
-│       └── protected.ts       # Protected routes (requiresAuth)
+│       ├── protected.ts       # Protected routes (requiresAuth)
+│       └── courses.ts         # Course + bootcamp routes
 ├── stores/
 │   ├── authStore.ts           # Pinia — access token (memory), user, refresh token (localStorage)
 │   └── errorStore.ts          # Pinia — global error modal state
 ├── types/
 │   ├── api.ts                 # Shared ApiResponse<T> generic type
-│   └── auth.ts                # TypeScript types for auth requests & responses
+│   ├── auth.ts                # TypeScript types for auth requests & responses
+│   └── courses.ts             # TypeScript types for Course, Lesson, Topic, Bootcamp, Progress
 ├── views/
-│   ├── HomeView.vue
+│   ├── HomeView.vue           # Landing page (hero + courses + bootcamp + benefits)
+│   ├── courses/
+│   │   ├── CourseDetailView.vue   # Course info + lesson sidebar
+│   │   └── LessonView.vue         # Video player page
+│   ├── bootcamps/
+│   │   └── BootcampDetailView.vue
 │   └── auth/
 │       ├── LoginView.vue
 │       ├── RegisterView.vue
@@ -366,8 +649,19 @@ src/
 │       ├── ForgotPasswordView.vue
 │       └── ResetPasswordView.vue
 └── components/
-    └── ui/
-        └── GlobalErrorModal.vue  # Global error modal (network / server errors)
+    ├── ui/
+    │   └── GlobalErrorModal.vue  # Global error modal (network / server errors)
+    ├── sections/
+    │   ├── HeroSection.vue       # Image slider (auto-advance)
+    │   ├── CoursesSection.vue    # Course cards + topic filter pills
+    │   ├── BootcampSection.vue   # Bootcamp cards
+    │   └── BenefitsSection.vue   # Company profile — alternating image/text blocks
+    └── course/
+        ├── CourseCard.vue        # Course card (cover, title, video count)
+        ├── BootcampCard.vue      # Bootcamp card (image, title, status badge, starting price)
+        ├── CourseSidebar.vue     # Module accordion → Chapter → Lesson list (is_done, is_locked, active)
+        ├── CourseHeader.vue      # Course title + progress bar
+        └── VideoPlayer.vue       # YouTube iframe embed, fires onEnded event
 ```
 
 ### Backend (`be-server/src/`)
@@ -378,7 +672,10 @@ src/
 │   ├── database.ts        # MongoDB connection
 │   └── mailer.ts          # Nodemailer Gmail setup
 ├── controllers/
-│   └── authController.ts  # Auth route handlers
+│   ├── authController.ts      # Auth route handlers
+│   ├── courseController.ts    # Course + topic route handlers
+│   ├── lessonController.ts    # Lesson + progress route handlers
+│   └── bootcampController.ts  # Bootcamp package, batch, session route handlers
 ├── middlewares/
 │   ├── authMiddleware.ts  # JWT verification + session check
 │   ├── errorHandler.ts    # Global error handler
@@ -386,14 +683,29 @@ src/
 │   └── requestLogger.ts   # Log request method, url, payload & response (Asia/Jakarta)
 ├── models/
 │   ├── User.ts            # User mongoose model
-│   └── Session.ts         # Device session model (TTL index)
+│   ├── Session.ts         # Device session model (TTL index)
+│   ├── Course.ts          # Course mongoose model
+│   ├── Module.ts          # Course module model
+│   ├── Chapter.ts         # Module chapter model
+│   ├── Lesson.ts          # Lesson model (type: video | quiz, embeds video object)
+│   ├── Progress.ts        # User lesson progress model
+│   ├── BootcampPackage.ts  # Bootcamp package model
+│   ├── BootcampBatch.ts    # Bootcamp batch model (multiple runs of same package)
+│   └── BootcampSession.ts  # Individual session schedule per batch
 ├── routes/
 │   ├── index.ts
-│   └── authRoutes.ts      # Auth routes
+│   ├── authRoutes.ts      # Auth routes
+│   ├── courseRoutes.ts    # Course + topic routes
+│   ├── lessonRoutes.ts    # Lesson + progress routes
+│   └── bootcampRoutes.ts  # Bootcamp routes
+├── seeds/
+│   ├── courseSeeder.ts    # Sample course + topic data
+│   └── bootcampSeeder.ts  # Sample bootcamp data
 ├── templates/
 │   └── otpEmail.ts        # OTP email HTML template (verification & reset)
 ├── validations/
-│   └── authValidation.ts  # Zod schemas for auth endpoints
+│   ├── authValidation.ts  # Zod schemas for auth endpoints
+│   └── courseValidation.ts # Zod schemas for course endpoints
 └── index.ts               # Entry point
 ```
 
@@ -416,6 +728,23 @@ src/
 | POST   | /api/auth/forgot-password   | Send OTP for password reset                         | -    |
 | POST   | /api/auth/verify-reset-otp  | Verify OTP for password reset                       | -    |
 | POST   | /api/auth/reset-password    | Set new password + delete all active sessions       | -    |
+
+### Courses
+
+| Method | Endpoint                       | Description                                            | Auth     |
+|--------|--------------------------------|--------------------------------------------------------|----------|
+| GET    | /api/courses                   | List all courses (optional `?topic=` filter, pagination) | -      |
+| GET    | /api/courses/topics            | List all topics / categories                           | -        |
+| GET    | /api/courses/:id               | Course detail + nested modules → chapters → lessons (with is_done + is_locked if authenticated) | - |
+| POST   | /api/courses/update-progress   | Mark lesson as complete (`{ lesson_id }` in body)      | JWT      |
+| GET    | /api/courses/:id/progress      | User progress for a course (completed / total lessons) | JWT      |
+
+### Bootcamp
+
+| Method | Endpoint                       | Description                                            | Auth     |
+|--------|--------------------------------|--------------------------------------------------------|----------|
+| GET    | /api/bootcamps                 | List all bootcamp packages (pagination, search, `?status=`, `?sort_type=`, `?order_by=`) | - |
+| GET    | /api/bootcamps/:id             | Bootcamp package detail with nested batches and sessions | -      |
 
 > More endpoints will be added per phase.
 
