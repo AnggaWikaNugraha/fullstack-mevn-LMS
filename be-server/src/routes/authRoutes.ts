@@ -10,6 +10,7 @@ import {
   forgotPassword,
   verifyResetOtp,
   resetPassword,
+  googleLogin,
 } from '../controllers/authController';
 import { protect } from '../middlewares/authMiddleware';
 import {
@@ -26,6 +27,7 @@ router.post('/register', register);
 router.post('/verify-otp', verifyOtpLimiter, verifyOtp);
 router.post('/resend-otp', resendOtpLimiter, resendOtp);
 router.post('/login', loginLimiter, login);
+router.post('/google', loginLimiter, googleLogin);
 router.post('/refresh', refreshToken);
 router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
 router.post('/verify-reset-otp', verifyOtpLimiter, verifyResetOtp);

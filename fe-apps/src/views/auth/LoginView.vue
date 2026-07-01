@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Eye, EyeOff, Loader2 } from '@lucide/vue';
 import { useLogin } from '@/composables/auth/useLogin';
+import GoogleSignInButton from '@/components/ui/GoogleSignInButton.vue';
 
-const { email, password, errors, isPending, serverError, showPassword, onSubmit } = useLogin();
+const { email, password, errors, isPending, serverError, isGoogleOnlyAccount, showPassword, onSubmit } = useLogin();
 </script>
 
 <template>
@@ -12,9 +13,20 @@ const { email, password, errors, isPending, serverError, showPassword, onSubmit 
       <p class="text-gray-500 text-sm mt-1">Sign in to your account to continue</p>
     </div>
 
-    <div v-if="serverError" class="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-6 flex items-start gap-2">
+    <!-- Generic error (wrong password, unverified, etc.) -->
+    <div v-if="serverError && !isGoogleOnlyAccount" class="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-6 flex items-start gap-2">
       <span class="mt-0.5 shrink-0">⚠</span>
       <span>{{ serverError }}</span>
+    </div>
+
+    <!-- Guided error for Google-only accounts trying email/password login -->
+    <div v-if="isGoogleOnlyAccount" class="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-6">
+      <p class="font-medium mb-1">This account was created with Google.</p>
+      <p>
+        Please
+        <RouterLink to="/auth/forgot-password" class="underline font-semibold hover:text-amber-900">set a password first</RouterLink>
+        to enable email login.
+      </p>
     </div>
 
     <form class="space-y-5" @submit="onSubmit">
@@ -64,6 +76,14 @@ const { email, password, errors, isPending, serverError, showPassword, onSubmit 
         {{ isPending ? 'Signing in...' : 'Sign In' }}
       </button>
     </form>
+
+    <div class="flex items-center gap-3 my-5">
+      <div class="flex-1 h-px bg-gray-200" />
+      <span class="text-xs text-gray-400 font-medium">or</span>
+      <div class="flex-1 h-px bg-gray-200" />
+    </div>
+
+    <GoogleSignInButton />
 
     <p class="text-center text-sm text-gray-500 mt-6">
       Don't have an account?

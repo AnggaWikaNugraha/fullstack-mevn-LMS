@@ -33,7 +33,7 @@ fullstack-mevn-lsm/
 
 | Category        | Technology           |
 |-----------------|----------------------|
-| Runtime         | Node.js              |
+| Runtime         | Node.js ≥ 18         |
 | Framework       | Express              |
 | Language        | TypeScript           |
 | ODM             | Mongoose             |
@@ -291,7 +291,136 @@ createdAt         → Date
 
 ---
 
-#### 1.3 Forgot Password
+#### 1.3 Login with Google (OAuth 2.0)
+
+**Account Rules:**
+- Google user (new email) → create account automatically (`isVerified: true`, no password)
+- Google email matches existing account → **merge**: add `googleId` to existing user, can login both ways
+- Google-only user tries email/password login → guided error: "Set a password first via Forgot Password" + link to Forgot Password page
+- After setting password via Forgot Password → account becomes dual-method (Google + email/password)
+- Google user uses Forgot Password → allowed: OTP sent, can set password, account becomes dual-method
+
+**Google Login Flow (Authorization Code — Redirect):**
+
+```
+User clicks "Continue with Google"
+          |
+          ▼
+    FE redirect → accounts.google.com/o/oauth2/v2/auth
+    (user selects account on Google's own page)
+          |
+          ├─→ User cancels → Google redirects back with error → FE redirect to /auth/login
+          |
+          └─→ User selects account
+                    |
+                    ▼
+              Google redirects to /auth/google/callback?code=xxx
+                    |
+                    ▼
+              GoogleCallbackView extracts code from URL
+                    |
+                    ▼
+              POST /api/auth/google  { code, deviceId }
+                    |
+                    ├─→ code invalid/expired    → error "Google authentication failed"
+                    |
+                    └─→ code valid
+                              |
+                              ▼
+                        BE exchanges code → Google Token endpoint
+                        → get idToken → verify → extract:
+                        email, name, googleId (sub)
+                              |
+                              ├─→ Email not in DB
+                              |         |
+                              |         ▼
+                              |   Create new user
+                              |   (isVerified: true, googleId, no password)
+                              |
+                              ├─→ Email exists, no googleId (merge)
+                              |         |
+                              |         ▼
+                              |   Add googleId to existing user
+                              |
+                              └─→ Email exists, has googleId
+                                        |
+                                        ▼
+                                  [Session logic — same as regular login]
+                                  Check active session
+                                        |
+                                        ├─→ Different device, still valid
+                                        |   → error "Account is active on another device"
+                                        |
+                                        └─→ No session / same device / expired
+                                                  |
+                                                  ▼
+                                            Generate access token (15 min)
+                                            Generate refresh token (1 day fixed)
+                                            Save session to DB
+                                                  |
+                                                  ▼
+                                            FE: store access token in Pinia (memory)
+                                            FE: store refresh token + deviceId in localStorage
+                                            FE: redirect to [Home]
+```
+
+**Google-only User tries Email/Password Login:**
+
+```
+Google-only user inputs email + password → submit
+          |
+          ▼
+    POST /api/auth/login
+          |
+          └─→ Email found, password === undefined (Google-only account)
+                    |
+                    ▼
+              Return 403 with specific message:
+              "This account was created with Google.
+               Please set a password first via Forgot Password."
+                    |
+                    ▼
+              FE: show guided error + "Set Password" link → [Forgot Password Page]
+                    |
+                    ▼
+              User sets password via OTP flow
+                    |
+                    ▼
+              Account is now dual-method (Google + email/password) ✅
+```
+
+**User Model Changes:**
+```
+password   → String, now optional  (Google-only users have no password)
+googleId   → String, optional      (stores Google "sub" identifier)
+```
+
+**BE Tasks:**
+- [x] Update User model — `password` optional, add `googleId?: string`
+- [x] Update `pre-save` hook — skip password hashing if `password` is undefined
+- [x] Update `login` controller — detect `password === undefined`, return 403 with guided message
+- [x] Zod schema `googleAuthSchema` — validate `{ code, deviceId }`
+- [x] `POST /api/auth/google` — exchange code → verify idToken → find/create/merge user → session logic → return tokens
+- [x] Add `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REDIRECT_URI` to `.env`
+- [x] Install `google-auth-library` (BE dependency)
+- [x] Node.js ≥ 18 required (`google-auth-library@10` uses `Headers` API not available in Node 16)
+
+**FE Tasks:**
+- [x] Add `VITE_GOOGLE_CLIENT_ID` to `.env`
+- [x] Update `src/types/auth.ts` — add `GoogleLoginPayload` type (`{ code, deviceId }`)
+- [x] API service `src/api/auth.ts` — add `googleLogin({ code, deviceId })`
+- [x] `src/composables/auth/useGoogleAuth.ts` — `redirectToGoogle()` builds OAuth URL + redirect; `handleCallback(code)` sends code to BE
+- [x] `src/components/ui/GoogleSignInButton.vue` — button that calls `redirectToGoogle()`
+- [x] `src/views/auth/GoogleCallbackView.vue` — extracts `code` from URL → calls BE → stores tokens → redirect Home
+- [x] Add route `/auth/google/callback` → `GoogleCallbackView`
+- [x] `/auth/login` — add `GoogleSignInButton` + handle 403 guided error with "Set Password" link
+- [x] `/auth/register` — add `GoogleSignInButton`
+- [x] Add `VITE_GOOGLE_REDIRECT_URI` to `.env`
+- [x] Google Cloud Console — add **Authorized redirect URI**: `http://localhost:5173/auth/google/callback`
+
+---
+
+#### 1.4 Forgot Password
 
 **Forgot Password Flow:**
 
@@ -382,7 +511,7 @@ User inputs new password + confirm password → submit
 
 ---
 
-#### 1.4 Global FE — Auth Infrastructure
+#### 1.5 Global FE — Auth Infrastructure
 
 **FE Tasks:**
 - [x] `src/api/client.ts` — Axios instance + interceptors (silent refresh, global error modal)
@@ -395,7 +524,7 @@ User inputs new password + confirm password → submit
 
 ---
 
-#### 1.5 Global FE — Error Handling
+#### 1.6 Global FE — Error Handling
 
 **Error handling rules:**
 
@@ -814,7 +943,8 @@ src/
 │   │   ├── useRegister.ts
 │   │   ├── useOtpVerification.ts
 │   │   ├── useForgotPassword.ts
-│   │   └── useResetPassword.ts
+│   │   ├── useResetPassword.ts
+│   │   └── useGoogleAuth.ts   # redirectToGoogle() builds OAuth URL; handleCallback(code) → call /api/auth/google → store tokens
 │   └── courses/               # Course composables
 │       ├── useCourses.ts      # useQuery for course list + topic filter
 │       ├── useCourseDetail.ts # useQuery for course detail + lesson list
@@ -847,10 +977,12 @@ src/
 │       ├── RegisterView.vue
 │       ├── OtpVerificationView.vue  # Used for both register and reset password (via history.state.mode)
 │       ├── ForgotPasswordView.vue
-│       └── ResetPasswordView.vue
+│       ├── ResetPasswordView.vue
+│       └── GoogleCallbackView.vue  # Receives redirect from Google, extracts code, calls BE
 └── components/
     ├── ui/
-    │   └── GlobalErrorModal.vue  # Global error modal (network / server errors)
+    │   ├── GlobalErrorModal.vue  # Global error modal (network / server errors)
+    │   └── GoogleSignInButton.vue  # Google branding button — calls redirectToGoogle() on click
     ├── sections/
     │   ├── HeroSection.vue       # Image slider (auto-advance)
     │   ├── CoursesSection.vue    # Course cards + topic filter pills
@@ -922,6 +1054,7 @@ src/
 | POST   | /api/auth/verify-otp        | Verify OTP (account activation)                     | -    |
 | POST   | /api/auth/resend-otp        | Resend OTP (60s cooldown)                           | -    |
 | POST   | /api/auth/login             | Login + device check, return access & refresh token | -    |
+| POST   | /api/auth/google            | Google OAuth — exchange code, find/create/merge user, return tokens  | -    |
 | POST   | /api/auth/refresh           | Silent refresh — return new access token            | -    |
 | POST   | /api/auth/logout            | Logout, delete session                              | JWT  |
 | GET    | /api/auth/me                | Get current logged-in user data                     | JWT  |

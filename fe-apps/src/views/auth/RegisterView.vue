@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Eye, EyeOff, Loader2 } from '@lucide/vue';
 import { useRegister } from '@/composables/auth/useRegister';
+import GoogleSignInButton from '@/components/ui/GoogleSignInButton.vue';
 
 const { name, email, password, confirmPassword, errors, isPending, serverError, showPassword, showConfirm, onSubmit } = useRegister();
 </script>
@@ -91,6 +92,14 @@ const { name, email, password, confirmPassword, errors, isPending, serverError, 
         {{ isPending ? 'Creating account...' : 'Create Account' }}
       </button>
     </form>
+
+    <div class="flex items-center gap-3 my-5">
+      <div class="flex-1 h-px bg-gray-200" />
+      <span class="text-xs text-gray-400 font-medium">or</span>
+      <div class="flex-1 h-px bg-gray-200" />
+    </div>
+
+    <GoogleSignInButton />
 
     <p class="text-center text-sm text-gray-500 mt-6">
       Already have an account?

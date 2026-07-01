@@ -33,12 +33,16 @@ export function useLogin() {
     },
   });
 
-  // Extract error message from the axios error response
   const serverError = computed(() =>
     (error.value as any)?.response?.data?.message || ''
   );
 
+  // True when BE returns 403 GOOGLE_ONLY_ACCOUNT — show guided error with Forgot Password link
+  const isGoogleOnlyAccount = computed(() =>
+    (error.value as any)?.response?.data?.code === 'GOOGLE_ONLY_ACCOUNT'
+  );
+
   const onSubmit = handleSubmit((values) => mutate(values));
 
-  return { email, password, errors, isPending, serverError, showPassword, onSubmit };
+  return { email, password, errors, isPending, serverError, isGoogleOnlyAccount, showPassword, onSubmit };
 }

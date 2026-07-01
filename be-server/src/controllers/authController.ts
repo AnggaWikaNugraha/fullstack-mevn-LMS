@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User';
 import Session from '../models/Session';
 import { sendMail } from '../config/mailer';
@@ -13,7 +14,13 @@ import {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  googleAuthSchema,
 } from '../validations/authValidation';
+
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET
+);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -234,9 +241,25 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
 
     const { email, password, deviceId } = parsed.data;
 
-    // Step 2 — Find user and verify credentials
+    // Step 2 — Find user by email
     const user = await User.findOne({ email }).select('+password');
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user) {
+      res.status(401).json({ success: false, message: 'Invalid email or password.' });
+      return;
+    }
+
+    // Step 2a — Google-only account: no password set, guide user to set one via Forgot Password
+    if (!user.password) {
+      res.status(403).json({
+        success: false,
+        code: 'GOOGLE_ONLY_ACCOUNT',
+        message: 'This account was created with Google. Please set a password first via Forgot Password.',
+      });
+      return;
+    }
+
+    // Step 2b — Verify password
+    if (!(await user.comparePassword(password))) {
       res.status(401).json({ success: false, message: 'Invalid email or password.' });
       return;
     }
@@ -514,6 +537,120 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
     res.status(200).json({
       success: true,
       message: 'Password reset successfully. Please log in with your new password.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Google Login ─────────────────────────────────────────────────────────────
+
+export const googleLogin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    // Step 1 — Validate request body
+    const parsed = googleAuthSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: parsed.error.flatten().fieldErrors,
+      });
+      return;
+    }
+
+    const { code, deviceId } = parsed.data;
+
+    // Step 2 — Exchange authorization code for tokens, then verify the id_token
+    let googlePayload: { sub: string; email: string; name: string };
+    try {
+      // Exchange code → get access_token + id_token from Google
+      const { tokens } = await googleClient.getToken({
+        code,
+        redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      });
+
+      if (!tokens.id_token) throw new Error('No id_token in response');
+
+      // Verify the id_token signature and extract user info
+      const ticket = await googleClient.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email || !payload.sub) {
+        throw new Error('Invalid token payload');
+      }
+
+      googlePayload = {
+        sub: payload.sub,
+        email: payload.email,
+        name: payload.name ?? payload.email,
+      };
+    } catch (googleErr) {
+      console.error('[Google OAuth Error]', googleErr);
+      res.status(401).json({ success: false, message: 'Google authentication failed. Please try again.' });
+      return;
+    }
+
+    const { sub: googleId, email, name } = googlePayload;
+
+    // Step 3 — Find or create/merge user
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // New email — create a Google-only account (no password, already verified)
+      user = await User.create({
+        name,
+        email,
+        googleId,
+        isVerified: true,
+      });
+    } else if (!user.googleId) {
+      // Existing email/password account — merge by adding googleId
+      user.googleId = googleId;
+      await user.save();
+    }
+    // If googleId already exists, just proceed to session logic below
+
+    // Step 4 — Check for an existing active session (same logic as regular login)
+    const existingSession = await Session.findOne({ userId: user._id });
+
+    if (existingSession) {
+      const isExpired = existingSession.refreshExpiredAt < new Date();
+
+      if (!isExpired && existingSession.deviceId !== deviceId) {
+        res.status(403).json({
+          success: false,
+          message: 'Your account is active on another device. Please log out first.',
+        });
+        return;
+      }
+
+      await Session.deleteOne({ _id: existingSession._id });
+    }
+
+    // Step 5 — Generate tokens and create session
+    const accessToken = signAccessToken(user._id.toString());
+    const refreshToken = signRefreshToken(user._id.toString());
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    const refreshExpiredAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await Session.create({
+      userId: user._id,
+      deviceId,
+      refreshToken: hashedRefreshToken,
+      refreshExpiredAt,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Google login successful.',
+      data: {
+        accessToken,
+        refreshToken,
+        user,
+      },
     });
   } catch (err) {
     next(err);

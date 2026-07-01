@@ -33,6 +33,11 @@ const authRoutes: RouteRecordRaw[] = [
         name: 'reset-password',
         component: () => import('@/views/auth/ResetPasswordView.vue'),
       },
+      {
+        path: 'google/callback',
+        name: 'google-callback',
+        component: () => import('@/views/auth/GoogleCallbackView.vue'),
+      },
     ],
   },
 ];

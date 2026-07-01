@@ -5,6 +5,7 @@ import type {
   VerifyOtpPayload,
   ResendOtpPayload,
   LoginPayload,
+  GoogleLoginPayload,
   ForgotPasswordPayload,
   VerifyResetOtpPayload,
   ResetPasswordPayload,
@@ -26,6 +27,9 @@ export const resendOtp = (payload: ResendOtpPayload) =>
 
 export const login = (payload: LoginPayload) =>
   apiClient.post<LoginResponse>('/auth/login', payload);
+
+export const googleLogin = (payload: GoogleLoginPayload) =>
+  apiClient.post<LoginResponse>('/auth/google', payload);
 
 export const refreshAccessToken = (refreshToken: string, deviceId: string) =>
   apiClient.post<ApiResponse<{ accessToken: string }>>('/auth/refresh', { refreshToken, deviceId });

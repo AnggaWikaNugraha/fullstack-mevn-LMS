@@ -41,3 +41,8 @@ export const resetPasswordSchema = z.object({
   message: 'Passwords do not match',
   path: ['confirmPassword'],
 });
+
+export const googleAuthSchema = z.object({
+  code: z.string().min(1, 'Authorization code is required'),
+  deviceId: z.string().min(1, 'Device ID is required'),
+});

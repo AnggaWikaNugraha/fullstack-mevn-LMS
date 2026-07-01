@@ -40,6 +40,11 @@ export interface ResetPasswordPayload {
   confirmPassword: string;
 }
 
+export interface GoogleLoginPayload {
+  code: string;
+  deviceId: string;
+}
+
 // ─── Response types (what BE returns) ───────────────────────────────────────
 
 export interface User {
