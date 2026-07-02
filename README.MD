@@ -1081,3 +1081,30 @@ session_end_time   → string (e.g. "12:00")
 > More endpoints will be added per phase.
 
 ---
+
+## Environment Variables
+
+### Backend (`be-server/.env`)
+
+| Variable                | Example                                      | Description                              |
+|-------------------------|----------------------------------------------|------------------------------------------|
+| `PORT`                  | `3000`                                       | Express server port                      |
+| `MONGODB_URI`           | `mongodb+srv://...`                          | MongoDB Atlas connection string          |
+| `JWT_SECRET`            | `your_jwt_secret`                            | Secret for signing access tokens         |
+| `JWT_EXPIRES_IN`        | `15m`                                        | Access token expiry                      |
+| `REFRESH_TOKEN_SECRET`  | `your_refresh_secret`                        | Secret for signing refresh tokens        |
+| `REFRESH_TOKEN_EXPIRES_IN` | `1d`                                      | Refresh token expiry                     |
+| `NODE_ENV`              | `development`                                | Environment mode                         |
+| `GOOGLE_CLIENT_ID`      | `xxxx.apps.googleusercontent.com`            | Google OAuth client ID                   |
+| `GOOGLE_CLIENT_SECRET`  | `GOCSPX-xxxx`                                | Google OAuth client secret               |
+| `GOOGLE_REDIRECT_URI`   | `http://localhost:5173/auth/google/callback` | Must match Google Console & FE env       |
+
+### Frontend (`fe-apps/.env`)
+
+| Variable                  | Example                                      | Description                        |
+|---------------------------|----------------------------------------------|------------------------------------|
+| `VITE_API_URL`            | `http://localhost:3000/api`                  | BE API base URL                    |
+| `VITE_GOOGLE_CLIENT_ID`   | `xxxx.apps.googleusercontent.com`            | Google OAuth client ID (same as BE)|
+| `VITE_GOOGLE_REDIRECT_URI`| `http://localhost:5173/auth/google/callback` | Must match BE env & Google Console |
+
+---
