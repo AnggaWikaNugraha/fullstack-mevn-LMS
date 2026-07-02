@@ -4,7 +4,6 @@ const protectedRoutes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('@/layouts/DefaultLayout.vue'),
-    meta: { requiresAuth: true },
     children: [
       {
         path: '',

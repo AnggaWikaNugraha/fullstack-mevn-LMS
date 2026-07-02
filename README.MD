@@ -718,20 +718,23 @@ topic_name    → string (display name, e.g. "Web Development") — matches Cour
 > Topics are not a separate collection — `/api/courses/topics` aggregates distinct `topic` + `topic_name` values from the Course collection.
 
 **BE Tasks:**
-- [ ] Course model (`title`, `description`, `cover_url`, `topic`, `topic_name`, `level`, `isFree`, `video_amount`, `total_lessons`, `course_duration`)
-- [ ] No separate Topic model — topics are aggregated from Course (`distinct topic + topic_name`)
-- [ ] Zod validation schema for course
-- [ ] `GET /api/courses` — list all courses, support optional `?topic=` query filter + pagination
-- [ ] `GET /api/courses/topics` — list all unique topics
-- [ ] Seed script — populate sample courses, topics, and lessons for development (admin panel will be added in a later phase)
+- [x] Course model (`title`, `description`, `cover_url`, `topic`, `topic_name`, `level`, `isFree`, `video_amount`, `total_lessons`, `course_duration`)
+- [x] No separate Topic model — topics are aggregated from Course (`distinct topic + topic_name`)
+- [x] `GET /api/courses` — list all courses, support optional `?topic=` query filter + pagination
+- [x] `GET /api/courses/topics` — list all unique topics
+- [x] Seed script (`npm run seed:courses`) — 6 sample courses across 4 topics
 
 **FE Tasks:**
-- [ ] API service `src/api/courses.ts` — `getCourses()`, `getTopics()`
-- [ ] TanStack Query `useQuery` for courses and topics (not `useMutation` — these are GET requests)
-- [ ] `/` (HomeView) — hero slider + course card row + topic filter pills + filtered course row
-- [ ] `CourseCard.vue` component — cover image, title, lesson count, topic badge
-- [ ] Skeleton loading state for cards and topic pills
-- [ ] Topic filter — client-side filter on already-fetched data (no refetch on pill click)
+- [x] `src/types/courses.ts` — `Course`, `Topic`, `CourseListResponse` types (`Pagination` moved to `types/api.ts`)
+- [x] `src/api/courses.ts` — `getCourses()`, `getTopics()`
+- [x] `src/composables/courses/useCourses.ts` — `useQuery` for courses + topics, client-side topic filter
+- [x] `CourseCard.vue` — cover image, level badge, topic name, video count, Free/Premium badge
+- [x] `CoursesSection.vue` — topic pills + course grid + skeleton loading
+- [x] `HeroSection.vue` — 3-slide auto-advance carousel (5s), prev/next arrows, dot indicators
+- [x] `AppNavbar.vue` — sticky navbar, desktop + mobile menu, auth state (login/logout)
+- [x] `DefaultLayout.vue` — mount `AppNavbar`
+- [x] `HomeView.vue` — `HeroSection` + `CoursesSection`
+- [x] `types/api.ts` — added global `Pagination` interface
 
 ---
 

@@ -5,3 +5,11 @@ export interface ApiResponse<T = null> {
   data?: T;
   errors?: Record<string, string[]>;
 }
+
+// Generic pagination meta — reusable across any list endpoint
+export interface Pagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}

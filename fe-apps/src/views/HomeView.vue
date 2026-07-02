@@ -1,5 +1,11 @@
+<script setup lang="ts">
+import HeroSection from '@/components/sections/HeroSection.vue';
+import CoursesSection from '@/components/sections/CoursesSection.vue';
+</script>
+
 <template>
   <div>
-    <h1>SkilLine Home</h1>
+    <HeroSection />
+    <CoursesSection />
   </div>
 </template>
