@@ -12,6 +12,123 @@ fullstack-mevn-lsm/
 
 ---
 
+## Folder Structure
+
+### Frontend (`fe-apps/src/`)
+
+```
+src/
+├── api/
+│   ├── client.ts              # Axios instance + interceptors (silent refresh)
+│   ├── auth.ts                # All auth API calls
+│   ├── courses.ts             # Course + lesson + progress API calls
+│   └── bootcamps.ts           # Bootcamp API calls
+├── composables/
+│   ├── useDeviceId.ts         # Generate and read UUID deviceId
+│   ├── auth/                  # Auth composables (logic separated from views)
+│   │   ├── useLogin.ts
+│   │   ├── useRegister.ts
+│   │   ├── useOtpVerification.ts
+│   │   ├── useForgotPassword.ts
+│   │   ├── useResetPassword.ts
+│   │   └── useGoogleAuth.ts   # redirectToGoogle() builds OAuth URL; handleCallback(code) → call /api/auth/google → store tokens
+│   └── courses/               # Course composables
+│       ├── useCourses.ts      # useQuery for course list + topic filter
+│       ├── useCourseDetail.ts # useQuery for course detail + lesson list
+│       └── useProgress.ts     # useMutation for mark lesson complete
+├── layouts/
+│   ├── DefaultLayout.vue      # Layout with Navbar + Footer
+│   └── AuthLayout.vue         # Split-screen layout (branding left, form right)
+├── router/
+│   ├── index.ts               # Vue Router + navigation guard
+│   └── routes/
+│       ├── auth.ts            # Auth routes (guest-only)
+│       ├── protected.ts       # Protected routes (requiresAuth)
+│       └── courses.ts         # Course + bootcamp routes
+├── stores/
+│   ├── authStore.ts           # Pinia — access token (memory), user, refresh token (localStorage)
+│   └── errorStore.ts          # Pinia — global error modal state
+├── types/
+│   ├── api.ts                 # Shared ApiResponse<T> generic type
+│   ├── auth.ts                # TypeScript types for auth requests & responses
+│   └── courses.ts             # TypeScript types for Course, Lesson, Topic, Bootcamp, Progress
+├── views/
+│   ├── HomeView.vue           # Landing page (hero + courses + bootcamp + benefits)
+│   ├── courses/
+│   │   ├── CourseDetailView.vue   # Course info + lesson sidebar
+│   │   └── LessonView.vue         # Video player page
+│   ├── bootcamps/
+│   │   └── BootcampDetailView.vue
+│   └── auth/
+│       ├── LoginView.vue
+│       ├── RegisterView.vue
+│       ├── OtpVerificationView.vue  # Used for both register and reset password (via history.state.mode)
+│       ├── ForgotPasswordView.vue
+│       ├── ResetPasswordView.vue
+│       └── GoogleCallbackView.vue  # Receives redirect from Google, extracts code, calls BE
+└── components/
+    ├── ui/
+    │   ├── GlobalErrorModal.vue  # Global error modal (network / server errors)
+    │   └── GoogleSignInButton.vue  # Google branding button — calls redirectToGoogle() on click
+    ├── sections/
+    │   ├── HeroSection.vue       # Image slider (auto-advance)
+    │   ├── CoursesSection.vue    # Course cards + topic filter pills
+    │   ├── BootcampSection.vue   # Bootcamp cards
+    │   └── BenefitsSection.vue   # Company profile — alternating image/text blocks
+    └── course/
+        ├── CourseCard.vue        # Course card (cover, title, video count)
+        ├── BootcampCard.vue      # Bootcamp card (image, title, status badge, starting price)
+        ├── CourseSidebar.vue     # Module accordion → Chapter → Lesson list (is_done, is_locked, active)
+        ├── CourseHeader.vue      # Course title + progress bar
+        └── VideoPlayer.vue       # YouTube iframe embed, fires onEnded event
+```
+
+### Backend (`be-server/src/`)
+
+```
+src/
+├── config/
+│   ├── database.ts        # MongoDB connection
+│   └── mailer.ts          # Nodemailer Gmail setup
+├── controllers/
+│   ├── authController.ts      # Auth route handlers
+│   ├── courseController.ts    # Course + topic route handlers
+│   ├── lessonController.ts    # Lesson + progress route handlers
+│   └── bootcampController.ts  # Bootcamp package, batch, session route handlers
+├── middlewares/
+│   ├── authMiddleware.ts  # JWT verification + session check
+│   ├── errorHandler.ts    # Global error handler
+│   ├── rateLimiter.ts     # Rate limit configs per endpoint
+│   └── requestLogger.ts   # Log request method, url, payload & response (Asia/Jakarta)
+├── models/
+│   ├── User.ts            # User mongoose model
+│   ├── Session.ts         # Device session model (TTL index)
+│   ├── Course.ts          # Course mongoose model
+│   ├── Module.ts          # Course module model
+│   ├── Chapter.ts         # Module chapter model
+│   ├── Lesson.ts          # Lesson model (type: video | quiz, embeds video object)
+│   ├── Progress.ts        # User lesson progress model
+│   ├── BootcampPackage.ts  # Bootcamp package model
+│   ├── BootcampBatch.ts    # Bootcamp batch model (multiple runs of same package)
+│   └── BootcampSession.ts  # Individual session schedule per batch
+├── routes/
+│   ├── index.ts
+│   ├── authRoutes.ts      # Auth routes
+│   ├── courseRoutes.ts    # Course + topic routes
+│   ├── lessonRoutes.ts    # Lesson + progress routes
+│   └── bootcampRoutes.ts  # Bootcamp routes
+├── seeds/
+│   ├── courseSeeder.ts    # Sample course + topic data
+│   └── bootcampSeeder.ts  # Sample bootcamp data
+├── templates/
+│   └── otpEmail.ts        # OTP email HTML template (verification & reset)
+├── validations/
+│   ├── authValidation.ts  # Zod schemas for auth endpoints
+│   └── courseValidation.ts # Zod schemas for course endpoints
+└── index.ts               # Entry point
+```
+---
+
 ## Tech Stack
 
 ### Frontend (`fe-apps`)
@@ -922,124 +1039,6 @@ session_end_time   → string (e.g. "12:00")
 ### Phase 5 — User Profile & Purchase History
 
 > Coming Soon
-
----
-
-## Folder Structure
-
-### Frontend (`fe-apps/src/`)
-
-```
-src/
-├── api/
-│   ├── client.ts              # Axios instance + interceptors (silent refresh)
-│   ├── auth.ts                # All auth API calls
-│   ├── courses.ts             # Course + lesson + progress API calls
-│   └── bootcamps.ts           # Bootcamp API calls
-├── composables/
-│   ├── useDeviceId.ts         # Generate and read UUID deviceId
-│   ├── auth/                  # Auth composables (logic separated from views)
-│   │   ├── useLogin.ts
-│   │   ├── useRegister.ts
-│   │   ├── useOtpVerification.ts
-│   │   ├── useForgotPassword.ts
-│   │   ├── useResetPassword.ts
-│   │   └── useGoogleAuth.ts   # redirectToGoogle() builds OAuth URL; handleCallback(code) → call /api/auth/google → store tokens
-│   └── courses/               # Course composables
-│       ├── useCourses.ts      # useQuery for course list + topic filter
-│       ├── useCourseDetail.ts # useQuery for course detail + lesson list
-│       └── useProgress.ts     # useMutation for mark lesson complete
-├── layouts/
-│   ├── DefaultLayout.vue      # Layout with Navbar + Footer
-│   └── AuthLayout.vue         # Split-screen layout (branding left, form right)
-├── router/
-│   ├── index.ts               # Vue Router + navigation guard
-│   └── routes/
-│       ├── auth.ts            # Auth routes (guest-only)
-│       ├── protected.ts       # Protected routes (requiresAuth)
-│       └── courses.ts         # Course + bootcamp routes
-├── stores/
-│   ├── authStore.ts           # Pinia — access token (memory), user, refresh token (localStorage)
-│   └── errorStore.ts          # Pinia — global error modal state
-├── types/
-│   ├── api.ts                 # Shared ApiResponse<T> generic type
-│   ├── auth.ts                # TypeScript types for auth requests & responses
-│   └── courses.ts             # TypeScript types for Course, Lesson, Topic, Bootcamp, Progress
-├── views/
-│   ├── HomeView.vue           # Landing page (hero + courses + bootcamp + benefits)
-│   ├── courses/
-│   │   ├── CourseDetailView.vue   # Course info + lesson sidebar
-│   │   └── LessonView.vue         # Video player page
-│   ├── bootcamps/
-│   │   └── BootcampDetailView.vue
-│   └── auth/
-│       ├── LoginView.vue
-│       ├── RegisterView.vue
-│       ├── OtpVerificationView.vue  # Used for both register and reset password (via history.state.mode)
-│       ├── ForgotPasswordView.vue
-│       ├── ResetPasswordView.vue
-│       └── GoogleCallbackView.vue  # Receives redirect from Google, extracts code, calls BE
-└── components/
-    ├── ui/
-    │   ├── GlobalErrorModal.vue  # Global error modal (network / server errors)
-    │   └── GoogleSignInButton.vue  # Google branding button — calls redirectToGoogle() on click
-    ├── sections/
-    │   ├── HeroSection.vue       # Image slider (auto-advance)
-    │   ├── CoursesSection.vue    # Course cards + topic filter pills
-    │   ├── BootcampSection.vue   # Bootcamp cards
-    │   └── BenefitsSection.vue   # Company profile — alternating image/text blocks
-    └── course/
-        ├── CourseCard.vue        # Course card (cover, title, video count)
-        ├── BootcampCard.vue      # Bootcamp card (image, title, status badge, starting price)
-        ├── CourseSidebar.vue     # Module accordion → Chapter → Lesson list (is_done, is_locked, active)
-        ├── CourseHeader.vue      # Course title + progress bar
-        └── VideoPlayer.vue       # YouTube iframe embed, fires onEnded event
-```
-
-### Backend (`be-server/src/`)
-
-```
-src/
-├── config/
-│   ├── database.ts        # MongoDB connection
-│   └── mailer.ts          # Nodemailer Gmail setup
-├── controllers/
-│   ├── authController.ts      # Auth route handlers
-│   ├── courseController.ts    # Course + topic route handlers
-│   ├── lessonController.ts    # Lesson + progress route handlers
-│   └── bootcampController.ts  # Bootcamp package, batch, session route handlers
-├── middlewares/
-│   ├── authMiddleware.ts  # JWT verification + session check
-│   ├── errorHandler.ts    # Global error handler
-│   ├── rateLimiter.ts     # Rate limit configs per endpoint
-│   └── requestLogger.ts   # Log request method, url, payload & response (Asia/Jakarta)
-├── models/
-│   ├── User.ts            # User mongoose model
-│   ├── Session.ts         # Device session model (TTL index)
-│   ├── Course.ts          # Course mongoose model
-│   ├── Module.ts          # Course module model
-│   ├── Chapter.ts         # Module chapter model
-│   ├── Lesson.ts          # Lesson model (type: video | quiz, embeds video object)
-│   ├── Progress.ts        # User lesson progress model
-│   ├── BootcampPackage.ts  # Bootcamp package model
-│   ├── BootcampBatch.ts    # Bootcamp batch model (multiple runs of same package)
-│   └── BootcampSession.ts  # Individual session schedule per batch
-├── routes/
-│   ├── index.ts
-│   ├── authRoutes.ts      # Auth routes
-│   ├── courseRoutes.ts    # Course + topic routes
-│   ├── lessonRoutes.ts    # Lesson + progress routes
-│   └── bootcampRoutes.ts  # Bootcamp routes
-├── seeds/
-│   ├── courseSeeder.ts    # Sample course + topic data
-│   └── bootcampSeeder.ts  # Sample bootcamp data
-├── templates/
-│   └── otpEmail.ts        # OTP email HTML template (verification & reset)
-├── validations/
-│   ├── authValidation.ts  # Zod schemas for auth endpoints
-│   └── courseValidation.ts # Zod schemas for course endpoints
-└── index.ts               # Entry point
-```
 
 ---
 
