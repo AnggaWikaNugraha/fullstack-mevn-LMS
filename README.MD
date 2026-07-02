@@ -43,8 +43,8 @@ src/
 │   ├── index.ts               # Vue Router + navigation guard
 │   └── routes/
 │       ├── auth.ts            # Auth routes (guest-only)
-│       ├── protected.ts       # Protected routes (requiresAuth)
-│       └── courses.ts         # Course + bootcamp routes
+│       ├── public.ts          # Public routes under DefaultLayout (home, courses, bootcamp)
+│       └── protected.ts       # Protected routes under DefaultLayout (requiresAuth per child)
 ├── stores/
 │   ├── authStore.ts           # Pinia — access token (memory), user, refresh token (localStorage)
 │   └── errorStore.ts          # Pinia — global error modal state

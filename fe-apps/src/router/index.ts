@@ -1,11 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import authRoutes from './routes/auth';
+import publicRoutes from './routes/public';
 import protectedRoutes from './routes/protected';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    ...publicRoutes,
     ...protectedRoutes,
     ...authRoutes,
     // Catch-all → home (guard will redirect to login if not authed)

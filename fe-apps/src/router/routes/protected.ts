@@ -1,17 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-const protectedRoutes: RouteRecordRaw[] = [
-  {
-    path: '/',
-    component: () => import('@/layouts/DefaultLayout.vue'),
-    children: [
-      {
-        path: '',
-        name: 'home',
-        component: () => import('@/views/HomeView.vue'),
-      },
-    ],
-  },
-];
+// Protected routes — each child must have meta: { requiresAuth: true }
+// Example: profile, my courses, purchase history, etc.
+const protectedRoutes: RouteRecordRaw[] = [];
 
 export default protectedRoutes;
