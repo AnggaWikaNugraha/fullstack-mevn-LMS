@@ -169,7 +169,8 @@ src/
 | Course List (landing page)                        | ✅ Done         |
 | Course Detail + Video Player                      | ✅ Done         |
 | Company Profile Section (Benefits + Footer)       | ✅ Done         |
-| Bootcamp List & Detail                            | 🔄 Coming Soon  |
+| Bootcamp List & Detail                            | ✅ Done         |
+| Live Session (Agora RTC)                          | 🔄 Coming Soon  |
 | Quiz & Task                                       | Coming Soon |
 | Checkout & Subscription                           | Coming Soon |
 | User Profile                                      | Coming Soon |
@@ -1001,20 +1002,24 @@ session_end_time   → string (e.g. "12:00")
 ```
 
 **BE Tasks:**
-- [ ] BootcampPackage model (`title`, `description`, `image_url`, `status`, `mentors[]`)
-- [ ] BootcampBatch model (`packageId`, `title`, `sub_title`, `description`, `started_at`, `ended_at`, `quota_used_percentage`, `price`, `strikethrough_price`, `package_type`)
-- [ ] BootcampSession model (`batchId`, `title`, `session_name`, `session_date`, `session_start_time`, `session_end_time`)
-- [ ] `GET /api/bootcamps` — list all packages with pagination + search + `?status=` + `?sort_type=` + `?order_by=`
-- [ ] `GET /api/bootcamps/:id` — package detail with nested batches and sessions
-- [ ] Seed script — populate sample bootcamp packages, batches, and sessions
+- [x] BootcampPackage model (`title`, `description`, `image_url`, `status`, `mentors[]`)
+- [x] BootcampBatch model (`packageId`, `title`, `sub_title`, `description`, `started_at`, `ended_at`, `quota_used_percentage`, `price`, `strikethrough_price`, `package_type`)
+- [x] BootcampSession model (`batchId`, `title`, `session_name`, `session_date`, `session_start_time`, `session_end_time`)
+- [x] `GET /api/bootcamps` — list all packages with pagination + search + `?status=`; `starting_price` dihitung dari batch termurah per package
+- [x] `GET /api/bootcamps/:id` — package detail with nested batches and sessions (single `$in` query for sessions)
+- [x] Seed script `npm run seed:bootcamps` — 3 packages (2 open, 1 coming_soon), 5 batches, 18 sessions
 
 **FE Tasks:**
-- [ ] API service `src/api/bootcamps.ts` — `getBootcamps()`, `getBootcampDetail()`
-- [ ] Bootcamp section on landing page — card grid (image, title, status badge, price from first open batch)
-- [ ] `BootcampCard.vue` — image, title, status badge, starting price
-- [ ] `/bootcamps/:id` — package detail page (info + batch list with sessions + CTA per batch)
-- [ ] Skeleton loading state
-- [ ] Pagination + search support on bootcamp list
+- [x] `src/types/bootcamps.ts` — `BootcampMentor`, `BootcampSession`, `BootcampBatch`, `BootcampPackage`, `BootcampListResponse`, `BootcampDetailResponse`
+- [x] `src/api/bootcamps.ts` — `getBootcamps()`, `getBootcampDetail()`
+- [x] `src/composables/bootcamps/useBootcamps.ts` — `useQuery(['bootcamps'])`, staleTime 5 menit
+- [x] `src/composables/bootcamps/useBootcampDetail.ts` — `useQuery`, `selectedBatchIndex` (client-side switching), `formatRupiah`, `formatSessionDate`
+- [x] `BootcampSection.vue` — grid card + skeleton loading + error/empty state, mounted di `HomeView`
+- [x] `BootcampCard.vue` — cover image, status badge, mentor avatars, starting price, link ke detail
+- [x] `/bootcamps/:id` — `BootcampDetailView.vue` — cover header, deskripsi, mentor list, batch tabs, session list, sticky CTA card
+- [x] CTA card — harga + strikethrough price, progress bar kuota, tombol disabled saat `coming_soon`/`closed`/quota penuh
+- [x] Login redirect — simpan `redirect_after_login` ke localStorage, push ke `/auth/login`
+- [x] Fix URL `/bootcamp` → `/bootcamps` di `BenefitsSection.vue` dan `AppFooter.vue`
 
 ---
 
@@ -1038,6 +1043,56 @@ session_end_time   → string (e.g. "12:00")
 - [x] `AppFooter.vue` — logo, navigation links, social media icons (TikTok, LinkedIn, Instagram, X)
 - [x] `HomeView.vue` — mount `BenefitsSection` after `CoursesSection`
 - [x] `DefaultLayout.vue` — mount `AppFooter` below `<main>` (flex-col so footer sticks to bottom)
+
+### Phase 2.5 — Live Session (Agora RTC)
+
+**Bootcamp sessions run as live video meetings using Agora.io — multiple enrolled users can join the same channel.**
+
+```
+[Bootcamp Session Page]
+
+User joins a live session
+          |
+          ▼
+    POST /api/bootcamps/sessions/:sessionId/token  (requires auth + enrollment)
+          |
+          ├─→ Not authenticated          → redirect to login
+          ├─→ Not enrolled in batch      → 403 Forbidden
+          └─→ Authenticated + enrolled
+                    |
+                    ▼
+              BE generates Agora RTC token
+              (App ID + App Certificate + channelName + uid)
+                    |
+                    ▼
+              FE joins Agora channel with token
+              FE renders video grid (mentor + participants)
+```
+
+**Agora Integration:**
+- Channel name: derived from `BootcampSession._id` (unique per session)
+- Token expiry: short-lived (1 hour), generated on demand
+- App Certificate stored server-side only (never exposed to FE)
+
+**Data Model Changes:**
+```
+BootcampSession — no new fields needed; channel name = session _id
+```
+
+**BE Tasks:**
+- [ ] Add `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE` to `.env`
+- [ ] Install `agora-token` (npm) — Agora token generation library
+- [ ] `POST /api/bootcamps/sessions/:sessionId/token` — validate enrollment, generate RTC token, return `{ token, channelName, appId, uid }`
+- [ ] Enrollment check middleware — verify user is registered for the batch that owns this session
+
+**FE Tasks:**
+- [ ] Install `agora-rtc-sdk-ng` (npm)
+- [ ] `src/api/bootcamps.ts` — add `getSessionToken(sessionId)`
+- [ ] `src/composables/bootcamps/useLiveSession.ts` — join/leave channel, manage local + remote tracks
+- [ ] `src/views/bootcamps/LiveSessionView.vue` — video grid (mentor + participants), mic/camera toggle, leave button
+- [ ] Add route `/bootcamps/sessions/:sessionId/live` → `LiveSessionView`
+
+---
 
 ### Phase 3 — Quiz & Task
 

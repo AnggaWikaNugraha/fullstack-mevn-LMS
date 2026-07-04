@@ -2,7 +2,7 @@
 // Footer statis — logo, nav, sosial media
 const navLinks = [
   { label: 'Kursus', to: '/' },
-  { label: 'Bootcamp', to: '/bootcamp' },
+  { label: 'Bootcamp', to: '/bootcamps' },
   { label: 'For Business', to: '/business' },
 ];
 

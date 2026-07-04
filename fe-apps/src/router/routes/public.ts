@@ -15,6 +15,11 @@ const publicRoutes: RouteRecordRaw[] = [
         name: 'course-detail',
         component: () => import('@/views/courses/CourseDetailView.vue'),
       },
+      {
+        path: 'bootcamps/:id',
+        name: 'bootcamp-detail',
+        component: () => import('@/views/bootcamps/BootcampDetailView.vue'),
+      },
     ],
   },
 ];

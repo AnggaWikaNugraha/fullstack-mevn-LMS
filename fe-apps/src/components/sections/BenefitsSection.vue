@@ -7,7 +7,7 @@ const benefits = [
     description:
       'Program bootcamp kami dirancang berbasis proyek nyata. Kamu akan membangun portfolio yang bisa langsung ditunjukkan ke perusahaan, didampingi mentor berpengalaman dari industri.',
     cta: 'Lihat Bootcamp',
-    ctaLink: '/bootcamp',
+    ctaLink: '/bootcamps',
     image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&q=80',
     imageAlt: 'Tim sedang berkolaborasi pada proyek coding',
     imageLeft: false,
@@ -18,7 +18,7 @@ const benefits = [
     description:
       'Setiap peserta mendapatkan mentor pribadi yang siap membantu kapanpun kamu stuck. Bukan sekadar forum — tapi bimbingan langsung dari praktisi yang bekerja di perusahaan top.',
     cta: 'Kenali Mentor Kami',
-    ctaLink: '/bootcamp',
+    ctaLink: '/bootcamps',
     image: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=800&q=80',
     imageAlt: 'Mentor sedang membimbing peserta belajar',
     imageLeft: true,
