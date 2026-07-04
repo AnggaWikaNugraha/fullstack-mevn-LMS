@@ -7,14 +7,14 @@ export interface AuthRequest extends Request {
 }
 
 export const protect = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-  // Step 1 — Extract Bearer token from Authorization header
+  // Langkah 1 — Ambil Bearer token dari header Authorization
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     res.status(401).json({ success: false, message: 'Access token is required.' });
     return;
   }
 
-  // Step 2 — Verify token signature and expiry
+  // Langkah 2 — Verifikasi signature dan masa berlaku token
   let decoded: { id: string };
   try {
     decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { id: string };
@@ -23,8 +23,8 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
     return;
   }
 
-  // Step 3 — Confirm an active session still exists in DB for this user
-  // This handles cases where user was logged out remotely (e.g., password reset)
+  // Langkah 3 — Pastikan sesi aktif masih ada di DB untuk user ini
+  // Menangani kasus user di-logout dari perangkat lain (misal: reset password)
   const deviceId = req.headers['x-device-id'] as string;
   const session = await Session.findOne({ userId: decoded.id, deviceId });
   if (!session) {
@@ -32,7 +32,24 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
     return;
   }
 
-  // Attach userId to request so controllers can access it
+  // Pasang userId ke request agar controller bisa mengaksesnya
   req.userId = decoded.id;
+  next();
+};
+
+// Sama seperti protect, tapi request tanpa token tetap diteruskan.
+// Controller cek req.userId untuk menentukan apakah user sudah login.
+export const optionalProtect = async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return next();
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { id: string };
+    const deviceId = req.headers['x-device-id'] as string;
+    const session = await Session.findOne({ userId: decoded.id, deviceId });
+    if (session) req.userId = decoded.id;
+  } catch {
+    // Token tidak valid di endpoint opsional — lanjut sebagai unauthenticated
+  }
   next();
 };

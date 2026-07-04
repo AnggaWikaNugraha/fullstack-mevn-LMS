@@ -68,7 +68,8 @@ src/
 │       └── GoogleCallbackView.vue  # Receives redirect from Google, extracts code, calls BE
 └── components/
     ├── ui/
-    │   ├── GlobalErrorModal.vue  # Global error modal (network / server errors)
+    │   ├── GlobalErrorModal.vue    # Global error modal (network / server errors)
+    │   ├── AppNavbar.vue           # Sticky navbar — desktop + mobile menu, auth state (login/logout)
     │   └── GoogleSignInButton.vue  # Google branding button — calls redirectToGoogle() on click
     ├── sections/
     │   ├── HeroSection.vue       # Image slider (auto-advance)
@@ -76,11 +77,10 @@ src/
     │   ├── BootcampSection.vue   # Bootcamp cards
     │   └── BenefitsSection.vue   # Company profile — alternating image/text blocks
     └── course/
-        ├── CourseCard.vue        # Course card (cover, title, video count)
+        ├── CourseCard.vue        # Course card (cover, level badge, topic name, video count, Free/Premium)
         ├── BootcampCard.vue      # Bootcamp card (image, title, status badge, starting price)
-        ├── CourseSidebar.vue     # Module accordion → Chapter → Lesson list (is_done, is_locked, active)
-        ├── CourseHeader.vue      # Course title + progress bar
-        └── VideoPlayer.vue       # YouTube iframe embed, fires onEnded event
+        ├── CourseSidebar.vue     # Module accordion → Chapter → Lesson list (is_done, is_locked icons, active highlight) + progress bar
+        └── VideoPlayer.vue       # YouTube IFrame API embed — emits 'ended' event when video finishes
 ```
 
 ### Backend (`be-server/src/`)
@@ -92,11 +92,10 @@ src/
 │   └── mailer.ts          # Nodemailer Gmail setup
 ├── controllers/
 │   ├── authController.ts      # Auth route handlers
-│   ├── courseController.ts    # Course + topic route handlers
-│   ├── lessonController.ts    # Lesson + progress route handlers
-│   └── bootcampController.ts  # Bootcamp package, batch, session route handlers
+│   ├── courseController.ts    # Course, topic, lesson, and progress route handlers
+│   └── bootcampController.ts  # Bootcamp package, batch, session route handlers (Phase 2.3)
 ├── middlewares/
-│   ├── authMiddleware.ts  # JWT verification + session check
+│   ├── authMiddleware.ts  # protect (JWT + session check) + optionalProtect (public endpoints with optional auth)
 │   ├── errorHandler.ts    # Global error handler
 │   ├── rateLimiter.ts     # Rate limit configs per endpoint
 │   └── requestLogger.ts   # Log request method, url, payload & response (Asia/Jakarta)
@@ -106,7 +105,7 @@ src/
 │   ├── Course.ts          # Course mongoose model
 │   ├── Module.ts          # Course module model
 │   ├── Chapter.ts         # Module chapter model
-│   ├── Lesson.ts          # Lesson model (type: video | quiz, embeds video object)
+│   ├── Lesson.ts          # Lesson model (type: video | quiz, video_url, duration, is_locked)
 │   ├── Progress.ts        # User lesson progress model
 │   ├── BootcampPackage.ts  # Bootcamp package model
 │   ├── BootcampBatch.ts    # Bootcamp batch model (multiple runs of same package)
@@ -114,17 +113,16 @@ src/
 ├── routes/
 │   ├── index.ts
 │   ├── authRoutes.ts      # Auth routes
-│   ├── courseRoutes.ts    # Course + topic routes
-│   ├── lessonRoutes.ts    # Lesson + progress routes
-│   └── bootcampRoutes.ts  # Bootcamp routes
+│   ├── courseRoutes.ts    # Course, topic, lesson, and progress routes
+│   └── bootcampRoutes.ts  # Bootcamp routes (Phase 2.3)
 ├── seeds/
-│   ├── courseSeeder.ts    # Sample course + topic data
-│   └── bootcampSeeder.ts  # Sample bootcamp data
+│   ├── courseSeeder.ts    # Sample course data — npm run seed:courses
+│   ├── lessonSeeder.ts    # Sample modules, chapters, lessons — npm run seed:lessons
+│   └── bootcampSeeder.ts  # Sample bootcamp data (Phase 2.3)
 ├── templates/
 │   └── otpEmail.ts        # OTP email HTML template (verification & reset)
 ├── validations/
-│   ├── authValidation.ts  # Zod schemas for auth endpoints
-│   └── courseValidation.ts # Zod schemas for course endpoints
+│   └── authValidation.ts  # Zod schemas for auth endpoints
 └── index.ts               # Entry point
 ```
 ---
@@ -164,10 +162,12 @@ src/
 
 ## Features
 
-| Feature                                           | Status      |
-|---------------------------------------------------|-------------|
-| Authentication                                    | ✅ Done     |
-| Courses & Bootcamp (list, detail, video player)   | Coming Soon |
+| Feature                                           | Status          |
+|---------------------------------------------------|-----------------|
+| Authentication                                    | ✅ Done         |
+| Course List (landing page)                        | ✅ Done         |
+| Course Detail + Video Player                      | ✅ Done         |
+| Bootcamp List & Detail                            | 🔄 Coming Soon  |
 | Quiz & Task                                       | Coming Soon |
 | Checkout & Subscription                           | Coming Soon |
 | User Profile                                      | Coming Soon |
@@ -811,12 +811,12 @@ Video ends → "Next Lesson" button appears
                     └─→ Success
                               |
                               ▼
-                        BE: save Progress record
-                        BE: unlock next lesson (set is_locked: false)
+                        BE: save Progress record (upsert — safe to call multiple times)
                               |
                               ▼
-                        FE: refetch course detail
-                        FE: tick is_done in sidebar
+                        FE: invalidate course detail query → refetch
+                        BE: recomputes is_locked per lesson from latest Progress
+                        FE: tick is_done in sidebar, next lesson unlocked
                         FE: navigate to next lesson
                               |
                         (if last lesson)
@@ -839,30 +839,28 @@ module_duration  → number (sum of all lesson durations in module, in seconds)
 
 **Data Model — Chapter:**
 ```
-moduleId      → ref to Module
-title         → string
-order         → number
+moduleId         → ref to Module
+title            → string
+order            → number
 chapter_duration → number (sum of lesson durations, in seconds)
 ```
 
 **Data Model — Lesson:**
 ```
 chapterId     → ref to Chapter
-moduleId      → ref to Module (denormalized for easier queries)
-courseId      → ref to Course (denormalized)
+courseId      → ref to Course (denormalized — used in getCourseProgress + stored in Progress)
 title         → string
 type          → enum: "video" | "quiz"
 order         → number
-time          → number (duration in seconds)
-is_locked     → boolean (true = must complete previous lesson first)
-bonus         → number (optional — coins/points reward)
-video         → embedded object (only if type = "video"):
-  title         → string
-  description   → string (HTML)
-  video_url     → string (full YouTube embed URL)
-  duration      → number (in seconds)
-  topic         → string
+duration      → number (in seconds — 0 for quiz type)
+video_url     → string | null (full YouTube embed URL — null for quiz type)
+description   → string
+is_locked     → boolean — dual meaning:
+                  false = free preview lesson, always accessible without login
+                  true  = gated: unauthenticated = locked;
+                          authenticated = locked until previous lesson is completed
 ```
+> `is_locked` in the API response is computed dynamically per user from their Progress records — the DB value serves as the free/gated flag, not the final state.
 
 **Data Model — Progress:**
 ```
@@ -874,23 +872,29 @@ completedAt   → Date
 > Unique index on `[userId, lessonId]` — one record per user per lesson.
 
 **BE Tasks:**
-- [ ] Module model (`courseId`, `title`, `order`, `module_duration`)
-- [ ] Chapter model (`moduleId`, `title`, `order`, `chapter_duration`)
-- [ ] Lesson model (`chapterId`, `moduleId`, `courseId`, `title`, `type`, `order`, `time`, `is_locked`, `bonus`, `video`)
-- [ ] Progress model (`userId`, `lessonId`, `courseId`, `completedAt`) — unique index on `[userId, lessonId]`
-- [ ] `GET /api/courses/:id` — course detail + nested modules → chapters → lessons (with `is_done` + `is_locked` per lesson if authenticated)
-- [ ] `POST /api/courses/update-progress` — mark lesson as complete (`{ lesson_id }` in body), requires auth
-- [ ] `GET /api/courses/:id/progress` — completed lesson count + total lessons for a course
-- [ ] Seed script — sample modules, chapters, lessons, and videos
+- [x] Module model (`courseId`, `title`, `order`, `module_duration`)
+- [x] Chapter model (`moduleId`, `title`, `order`, `chapter_duration`)
+- [x] Lesson model (`chapterId`, `courseId`, `title`, `type`, `order`, `duration`, `video_url`, `description`, `is_locked`)
+- [x] Progress model (`userId`, `lessonId`, `courseId`, `completedAt`) — unique index on `[userId, lessonId]`
+- [x] `optionalProtect` middleware — passes unauthenticated requests through; attaches `req.userId` if token is valid
+- [x] `GET /api/courses/:id` — course detail + nested modules → chapters → lessons with dynamic `is_done` + `is_locked` per user
+- [x] `POST /api/courses/update-progress` — mark lesson as complete (`{ lesson_id }` in body), upsert — requires auth
+- [x] `GET /api/courses/:id/progress` — completed lesson count + percentage for a course, requires auth
+- [x] Seed script `npm run seed:lessons` — 2 modules, 4 chapters, 14 lessons (12 video + 2 quiz) for "Belajar Vue 3 dari Nol"
 
 **FE Tasks:**
-- [ ] API service `src/api/courses.ts` — `getCourseDetail()`, `updateProgress()`, `getCourseProgress()`
-- [ ] `/courses/:id` — course detail page with video player + sidebar
-- [ ] `CourseSidebar.vue` — Module accordion → Chapter → Lesson list (show is_done tick, is_locked icon, active state)
-- [ ] `VideoPlayer.vue` — YouTube embed via iframe, fires `onEnded` event when video finishes
-- [ ] `CourseHeader.vue` — course title + progress bar (completed / total lessons)
-- [ ] "Next Lesson" button — appears after video ends; calls `updateProgress()` if not yet done, then navigates to next lesson
-- [ ] Lesson locking — if `is_locked: true`, show tooltip "Complete the previous lesson first"
+- [x] `src/types/courses.ts` — added `Lesson`, `Chapter`, `Module`, `CourseDetail`, `CourseDetailResponse`, `CourseProgressResponse`
+- [x] `src/api/courses.ts` — added `getCourseDetail()`, `updateProgress()`, `getCourseProgress()`
+- [x] `src/composables/courses/useCourseDetail.ts` — `useQuery` + auto-select first unlocked lesson + `findNextLesson`
+- [x] `src/composables/courses/useProgress.ts` — `useMutation` that invalidates course detail query on success
+- [x] `/courses/:id` — `CourseDetailView.vue` — responsive: video + lesson info on left/top, sidebar on right/bottom
+- [x] `CourseSidebar.vue` — Module accordion → Chapter → Lesson list (is_done ✓, is_locked 🔒, active highlight) + progress bar
+- [x] `VideoPlayer.vue` — YouTube IFrame API (dynamic script inject, `onStateChange` → emit `'ended'`)
+- [x] "Tandai Selesai" button + auto-mark on video end → calls `updateProgress()`, invalidates query
+- [x] "Selanjutnya →" button — navigates to next unlocked lesson
+- [x] Lesson locking overlay — if `is_locked: true`, show lock icon + message on video player
+- [x] Login prompt banner — shown to unauthenticated visitors on course detail page
+- [x] Mobile responsive — stacks vertically on mobile (video → info → sidebar), side-by-side on desktop (lg+)
 
 ---
 

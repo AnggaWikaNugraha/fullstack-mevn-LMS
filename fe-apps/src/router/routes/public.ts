@@ -10,6 +10,11 @@ const publicRoutes: RouteRecordRaw[] = [
         name: 'home',
         component: () => import('@/views/HomeView.vue'),
       },
+      {
+        path: 'courses/:id',
+        name: 'course-detail',
+        component: () => import('@/views/courses/CourseDetailView.vue'),
+      },
     ],
   },
 ];
