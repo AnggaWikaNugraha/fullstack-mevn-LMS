@@ -668,6 +668,8 @@ User inputs new password + confirm password → submit
 
 #### 2.1 Course List (Landing Page)
 
+![course](docs/course.png)
+
 **Flow:**
 
 ```
@@ -742,6 +744,8 @@ topic_name    → string (display name, e.g. "Web Development") — matches Cour
 ---
 
 #### 2.2 Course Detail + Video Player
+
+![course detail](docs/course%20detail%20+%20vid%20player.png)
 
 **Content Hierarchy (matches reference):**
 ```
@@ -903,6 +907,8 @@ completedAt   → Date
 
 #### 2.3 Bootcamp List & Detail
 
+![Bootcamps](docs/course.png)
+
 **Bootcamp List Flow:**
 
 ```
@@ -921,6 +927,8 @@ User opens landing page (bootcamp section)
 ```
 
 **Bootcamp Detail Flow:**
+
+![Bootcamp details](docs/course%20detail%20+%20vid%20player.png)
 
 ```
 User navigates to /bootcamps/:id
