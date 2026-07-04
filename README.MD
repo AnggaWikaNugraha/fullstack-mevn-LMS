@@ -70,6 +70,7 @@ src/
     ├── ui/
     │   ├── GlobalErrorModal.vue    # Global error modal (network / server errors)
     │   ├── AppNavbar.vue           # Sticky navbar — desktop + mobile menu, auth state (login/logout)
+    │   ├── AppFooter.vue           # Footer — logo, nav links, social media icons (TikTok, LinkedIn, Instagram, X)
     │   └── GoogleSignInButton.vue  # Google branding button — calls redirectToGoogle() on click
     ├── sections/
     │   ├── HeroSection.vue       # Image slider (auto-advance)
@@ -167,6 +168,7 @@ src/
 | Authentication                                    | ✅ Done         |
 | Course List (landing page)                        | ✅ Done         |
 | Course Detail + Video Player                      | ✅ Done         |
+| Company Profile Section (Benefits + Footer)       | ✅ Done         |
 | Bootcamp List & Detail                            | 🔄 Coming Soon  |
 | Quiz & Task                                       | Coming Soon |
 | Checkout & Subscription                           | Coming Soon |
@@ -1032,8 +1034,10 @@ session_end_time   → string (e.g. "12:00")
 ```
 
 **FE Tasks:**
-- [ ] `BenefitsSection.vue` — 3 alternating image + text blocks, static content
-- [ ] `AppFooter.vue` — logo, navigation links, social media icons (TikTok, LinkedIn, Instagram, X)
+- [x] `BenefitsSection.vue` — 3 alternating image + text blocks, static content (Bootcamp, Personal Mentor, Diverse Courses)
+- [x] `AppFooter.vue` — logo, navigation links, social media icons (TikTok, LinkedIn, Instagram, X)
+- [x] `HomeView.vue` — mount `BenefitsSection` after `CoursesSection`
+- [x] `DefaultLayout.vue` — mount `AppFooter` below `<main>` (flex-col so footer sticks to bottom)
 
 ### Phase 3 — Quiz & Task
 
