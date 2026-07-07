@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "seed:courses": "ts-node src/seeds/courseSeeder.ts",
     "seed:lessons": "ts-node src/seeds/lessonSeeder.ts",
-    "seed:bootcamps": "ts-node src/seeds/bootcampSeeder.ts"
+    "seed:bootcamps": "ts-node src/seeds/bootcampSeeder.ts",
+    "seed:quiz": "ts-node src/seeds/quizSeeder.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

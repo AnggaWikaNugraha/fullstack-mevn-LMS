@@ -34,11 +34,12 @@ export interface CourseListResponse {
 export interface Lesson {
   _id: string;
   title: string;
-  type: 'video' | 'quiz';
+  type: 'video' | 'quiz' | 'task';
   order: number;
   duration: number;    // seconds
   video_url: string | null;
   description: string;
+  passing_score: number; // nilai minimum lulus quiz (default 70)
   is_done: boolean;    // injected by BE based on user Progress
   is_locked: boolean;  // injected by BE: false when previous lesson is completed
 }

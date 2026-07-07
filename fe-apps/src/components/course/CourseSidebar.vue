@@ -154,6 +154,7 @@ function formatDuration(seconds: number): string {
                   {{ formatDuration(lesson.duration) }}
                 </p>
                 <span v-if="lesson.type === 'quiz'" class="text-xs text-amber-600 font-medium">Quiz</span>
+                <span v-if="lesson.type === 'task'" class="text-xs text-blue-600 font-medium">Task</span>
               </div>
             </button>
           </div>

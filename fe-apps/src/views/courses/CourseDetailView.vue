@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCourseDetail } from '@/composables/courses/useCourseDetail';
 import { useProgress } from '@/composables/courses/useProgress';
 import VideoPlayer from '@/components/course/VideoPlayer.vue';
+import QuizPlayer from '@/components/course/QuizPlayer.vue';
+import TaskPlayer from '@/components/course/TaskPlayer.vue';
 import CourseSidebar from '@/components/course/CourseSidebar.vue';
 
 const route = useRoute();
@@ -20,9 +22,10 @@ function handleMarkComplete() {
   markComplete(activeLesson.value._id);
 }
 
-// Ketika video selesai, otomatis tandai selesai jika user sudah login
+// Hanya video yang bisa otomatis ditandai selesai saat playback berakhir
 function handleVideoEnded() {
   if (!auth.isAuthenticated || !activeLesson.value) return;
+  if (activeLesson.value.type !== 'video') return;
   if (!activeLesson.value.is_done) {
     markComplete(activeLesson.value._id);
   }
@@ -57,13 +60,44 @@ function handleVideoEnded() {
     <!-- ── Konten utama ──────────────────────────────────────────────── -->
     <template v-else-if="courseData">
 
-      <!-- Kiri / atas: video + info lesson -->
+      <!-- Kiri / atas: player + info lesson -->
       <main class="flex-1 lg:overflow-y-auto bg-gray-950">
+
+        <!-- Video player — hanya untuk tipe video -->
         <VideoPlayer
+          v-if="activeLesson?.type === 'video' || !activeLesson"
           :videoUrl="activeLesson?.video_url ?? null"
           :isLocked="activeLesson?.is_locked ?? false"
           @ended="handleVideoEnded"
         />
+
+        <!-- Quiz player — hanya untuk tipe quiz, butuh login -->
+        <div
+          v-else-if="activeLesson.type === 'quiz'"
+          class="bg-white min-h-[calc(100vh-64px-80px)]"
+        >
+          <QuizPlayer v-if="auth.isAuthenticated" :lesson="activeLesson" />
+          <div v-else class="flex items-center justify-center py-24 px-6">
+            <p class="text-gray-500 text-sm text-center">
+              <RouterLink to="/auth/login" class="text-indigo-600 font-semibold hover:underline">Masuk</RouterLink>
+              untuk mengerjakan quiz ini.
+            </p>
+          </div>
+        </div>
+
+        <!-- Task player — hanya untuk tipe task, butuh login -->
+        <div
+          v-else-if="activeLesson.type === 'task'"
+          class="bg-white min-h-[calc(100vh-64px-80px)]"
+        >
+          <TaskPlayer v-if="auth.isAuthenticated" :lesson="activeLesson" />
+          <div v-else class="flex items-center justify-center py-24 px-6">
+            <p class="text-gray-500 text-sm text-center">
+              <RouterLink to="/auth/login" class="text-indigo-600 font-semibold hover:underline">Masuk</RouterLink>
+              untuk mengumpulkan tugas ini.
+            </p>
+          </div>
+        </div>
 
         <!-- Info lesson di bawah player -->
         <div class="p-4 lg:p-6 bg-white">
@@ -76,14 +110,17 @@ function handleVideoEnded() {
               <h1 class="text-lg lg:text-xl font-bold text-gray-900">
                 {{ activeLesson?.title ?? 'Pilih pelajaran' }}
               </h1>
-              <p v-if="activeLesson?.description" class="mt-2 text-sm text-gray-500 leading-relaxed">
+              <p v-if="activeLesson?.description && activeLesson.type === 'video'" class="mt-2 text-sm text-gray-500 leading-relaxed">
                 {{ activeLesson.description }}
               </p>
             </div>
 
-            <!-- Tombol aksi — hanya untuk user yang sudah login -->
-            <div v-if="auth.isAuthenticated && activeLesson" class="flex items-center gap-2 sm:shrink-0">
-              <!-- Tombol tandai selesai -->
+            <!-- Tombol aksi — hanya untuk user yang sudah login dan lesson video -->
+            <div
+              v-if="auth.isAuthenticated && activeLesson && activeLesson.type === 'video'"
+              class="flex items-center gap-2 sm:shrink-0"
+            >
+              <!-- Tombol tandai selesai hanya untuk video -->
               <button
                 v-if="!activeLesson.is_done"
                 class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"

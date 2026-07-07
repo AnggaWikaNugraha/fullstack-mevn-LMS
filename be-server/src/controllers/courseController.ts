@@ -203,6 +203,16 @@ export const updateProgress = async (req: AuthRequest, res: Response, next: Next
       return;
     }
 
+    // Quiz dan task punya endpoint sendiri — updateProgress hanya untuk video
+    if (lesson.type === 'quiz') {
+      res.status(400).json({ success: false, message: 'Gunakan endpoint /api/quiz/:lessonId/submit untuk menyelesaikan quiz.' });
+      return;
+    }
+    if (lesson.type === 'task') {
+      res.status(400).json({ success: false, message: 'Gunakan endpoint /api/tasks/:lessonId/submit untuk menyelesaikan task.' });
+      return;
+    }
+
     // Upsert: aman meski user klik "selesai" lebih dari sekali
     await Progress.findOneAndUpdate(
       { userId: req.userId, lessonId: lesson_id },

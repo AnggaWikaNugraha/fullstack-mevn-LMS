@@ -1104,7 +1104,152 @@ BootcampSession — no new fields needed; channel name = session _id
 
 ### Phase 3 — Quiz & Task
 
-> Coming Soon
+> Assumptions: Task = submit URL + optional note. Quiz retry = unlimited. `passing_score` stored on Lesson (default 70). Task auto-approved on submit.
+
+#### 3.1 Quiz
+
+**Quiz Flow:**
+
+```
+User clicks quiz lesson in sidebar
+          |
+          ▼
+    GET /api/quiz/:lessonId/my-attempt
+          |
+          ├─→ has attempt → show result (score + LULUS/GAGAL + retry button)
+          |
+          └─→ no attempt
+                    |
+                    ▼
+              GET /api/quiz/:lessonId/questions
+              (correct_index excluded from response)
+                    |
+                    ▼
+              FE: render multiple-choice form
+                    |
+              User answers all questions → submit
+                    |
+                    ▼
+              POST /api/quiz/:lessonId/submit  { answers[] }
+                    |
+                    ├─→ passed: false
+                    |         |
+                    |         ▼
+                    |   FE: show score + "Coba Lagi" button
+                    |   Progress NOT created → next lesson stays locked
+                    |
+                    └─→ passed: true  (score ≥ passing_score)
+                              |
+                              ▼
+                        BE: upsert Progress record
+                        FE: invalidateQueries(['course', courseId])
+                        sidebar: lesson is_done ✓, next lesson unlocked
+```
+
+**Data Model — QuizQuestion:**
+```
+lessonId      → ref to Lesson (type: 'quiz')
+question      → string
+options       → string[] (4 choices)
+correct_index → number (0–3) — never sent to FE
+order         → number
+```
+
+**Data Model — QuizAttempt:**
+```
+userId        → ref to User
+lessonId      → ref to Lesson
+courseId      → ref to Course (denormalized)
+answers       → number[] (selected option index per question, in order)
+score         → number (0–100)
+passed        → boolean
+attemptedAt   → Date
+```
+> No unique index — multiple attempts allowed. `my-attempt` returns the latest.
+
+**Lesson Model Changes:**
+```
+type          → enum: 'video' | 'quiz' | 'task'  (add 'task')
+passing_score → number, default: 70              (new field)
+```
+> `POST /api/courses/update-progress` returns 400 if `lesson.type !== 'video'`. Quiz completion is handled exclusively by `POST /api/quiz/:lessonId/submit`.
+
+**BE Tasks:**
+- [x] Update `Lesson` model — add `'task'` to type enum, add `passing_score` (default 70)
+- [x] `QuizQuestion` model (`lessonId`, `question`, `options[]`, `correct_index`, `order`)
+- [x] `QuizAttempt` model (`userId`, `lessonId`, `courseId`, `answers[]`, `score`, `passed`, `attemptedAt`)
+- [x] Update `updateProgress` controller — 400 if `lesson.type !== 'video'`
+- [x] `GET /api/quiz/:lessonId/questions` — return questions, **exclude `correct_index`**
+- [x] `POST /api/quiz/:lessonId/submit` — score server-side, save QuizAttempt, upsert Progress if passed
+- [x] `GET /api/quiz/:lessonId/my-attempt` — latest attempt or null
+- [x] Register `quizRoutes` in `routes/index.ts`
+- [x] Seed script `npm run seed:quiz` — questions for existing quiz lessons
+
+**FE Tasks:**
+- [x] `src/types/courses.ts` — `Lesson.type` add `'task'`, add `passing_score`
+- [x] `src/types/quiz.ts` — `QuizQuestion`, `QuizAttemptResult`, `QuizSubmitPayload`
+- [x] `src/api/quiz.ts` — `getQuizQuestions()`, `submitQuizAnswers()`, `getMyAttempt()`
+- [x] `src/composables/courses/useQuiz.ts` — questions query, attempt query, submit mutation, `userAnswers` state, `allAnswered` computed
+- [x] `QuizPlayer.vue` — form soal → loading → result (score + LULUS/GAGAL + retry). If `isDone` → show result directly
+- [x] `CourseDetailView.vue` — branch `activeLesson.type`: `'quiz'` → `<QuizPlayer>`. Fix `handleVideoEnded` guard. Hide "Tandai Selesai" for quiz
+- [x] `CourseSidebar.vue` — already has "Quiz" label — no change needed
+
+---
+
+#### 3.2 Task
+
+**Task Flow:**
+
+```
+User clicks task lesson in sidebar
+          |
+          ▼
+    GET /api/tasks/:lessonId/my-submission
+          |
+          ├─→ submission exists → show read-only submitted view (URL + note + "Selesai" badge)
+          |
+          └─→ no submission
+                    |
+                    ▼
+              FE: show task description + URL input + optional note textarea
+                    |
+              User inputs URL → submit
+                    |
+                    ▼
+              POST /api/tasks/:lessonId/submit  { submission_url, note }
+                    |
+                    ▼
+              BE: save TaskSubmission
+              BE: upsert Progress record (auto-approve)
+              FE: invalidateQueries(['course', courseId])
+              sidebar: lesson is_done ✓
+```
+
+**Data Model — TaskSubmission:**
+```
+userId          → ref to User
+lessonId        → ref to Lesson (type: 'task')
+courseId        → ref to Course (denormalized)
+submission_url  → string
+note            → string (optional)
+status          → 'submitted'
+submittedAt     → Date
+```
+> Unique index on `[userId, lessonId]` — one submission per user per lesson.
+
+**BE Tasks:**
+- [x] `TaskSubmission` model (`userId`, `lessonId`, `courseId`, `submission_url`, `note`, `status`, `submittedAt`) — unique index `[userId, lessonId]`
+- [x] `POST /api/tasks/:lessonId/submit` — save TaskSubmission, upsert Progress
+- [x] `GET /api/tasks/:lessonId/my-submission` — submission or null
+- [x] Register `taskRoutes` in `routes/index.ts`
+
+**FE Tasks:**
+- [x] `src/types/quiz.ts` — add `TaskSubmission`, `TaskSubmitPayload`
+- [x] `src/api/tasks.ts` — `submitTask()`, `getMySubmission()`
+- [x] `src/composables/courses/useTask.ts` — submission query, submit mutation
+- [x] `TaskPlayer.vue` — submit form (URL + note). If `isDone` → read-only submitted view
+- [x] `CourseDetailView.vue` — branch `activeLesson.type`: `'task'` → `<TaskPlayer>`. Hide "Tandai Selesai" for task
+- [x] `CourseSidebar.vue` — add "Task" label for `lesson.type === 'task'`
 
 ### Phase 4 — Checkout & Subscription
 
@@ -1151,6 +1296,21 @@ BootcampSession — no new fields needed; channel name = session _id
 |--------|--------------------------------|--------------------------------------------------------|----------|
 | GET    | /api/bootcamps                 | List all bootcamp packages (pagination, search, `?status=`, `?sort_type=`, `?order_by=`) | - |
 | GET    | /api/bootcamps/:id             | Bootcamp package detail with nested batches and sessions | -      |
+
+### Quiz
+
+| Method | Endpoint                              | Description                                                         | Auth |
+|--------|---------------------------------------|---------------------------------------------------------------------|------|
+| GET    | /api/quiz/:lessonId/questions         | Quiz questions for a lesson (correct_index excluded)                | JWT  |
+| POST   | /api/quiz/:lessonId/submit            | Submit answers — scores server-side, creates Progress if passed     | JWT  |
+| GET    | /api/quiz/:lessonId/my-attempt        | Latest quiz attempt for current user (null if none)                 | JWT  |
+
+### Task
+
+| Method | Endpoint                              | Description                                                         | Auth |
+|--------|---------------------------------------|---------------------------------------------------------------------|------|
+| POST   | /api/tasks/:lessonId/submit           | Submit task URL + note, auto-creates Progress                       | JWT  |
+| GET    | /api/tasks/:lessonId/my-submission    | Task submission for current user (null if none)                     | JWT  |
 
 > More endpoints will be added per phase.
 
