@@ -928,7 +928,7 @@ User opens landing page (bootcamp section)
 
 **Bootcamp Detail Flow:**
 
-![Bootcamp details](docs/course%20detail%20+%20vid%20player.png)
+![Bootcamp details](docs/bootcamp%20detail.png)
 
 ```
 User navigates to /bootcamps/:id
