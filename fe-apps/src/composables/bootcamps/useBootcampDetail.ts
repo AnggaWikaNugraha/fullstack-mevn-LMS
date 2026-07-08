@@ -1,9 +1,15 @@
 import { ref, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
+import { useAuthStore } from '@/stores/authStore';
 import { getBootcampDetail } from '@/api/bootcamps';
 import type { BootcampBatch } from '@/types/bootcamps';
 
 export function useBootcampDetail(id: string) {
+  const router = useRouter();
+  const route = useRoute();
+  const authStore = useAuthStore();
+
   // Indeks batch yang sedang dipilih — switching dilakukan client-side tanpa refetch
   const selectedBatchIndex = ref(0);
 
@@ -45,6 +51,19 @@ export function useBootcampDetail(id: string) {
     }).format(new Date(dateStr));
   }
 
+  // Tombol daftar — cek login, redirect jika belum
+  function handleRegister() {
+    if (!authStore.user) {
+      localStorage.setItem('redirect_after_login', route.fullPath);
+      router.push('/auth/login');
+      return;
+    }
+    // Phase 4: buka modal checkout
+  }
+
+  const isRegisterDisabled = (status: string, quota: number) =>
+    status !== 'open' || quota >= 100;
+
   return {
     bootcamp,
     batches,
@@ -54,6 +73,8 @@ export function useBootcampDetail(id: string) {
     setSelectedBatch,
     formatRupiah,
     formatSessionDate,
+    handleRegister,
+    isRegisterDisabled,
     isLoading,
     isError,
   };

@@ -15,21 +15,7 @@ const courseId = route.params.id as string;
 const { courseData, isLoading, isError, activeLessonId, activeLesson, nextLesson, selectLesson } =
   useCourseDetail(courseId);
 
-const { markComplete, isPending } = useProgress(courseId);
-
-function handleMarkComplete() {
-  if (!activeLesson.value) return;
-  markComplete(activeLesson.value._id);
-}
-
-// Hanya video yang bisa otomatis ditandai selesai saat playback berakhir
-function handleVideoEnded() {
-  if (!auth.isAuthenticated || !activeLesson.value) return;
-  if (activeLesson.value.type !== 'video') return;
-  if (!activeLesson.value.is_done) {
-    markComplete(activeLesson.value._id);
-  }
-}
+const { isPending, handleMarkComplete, handleVideoEnded } = useProgress(courseId, activeLesson);
 </script>
 
 <template>

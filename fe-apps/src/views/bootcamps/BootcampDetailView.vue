@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useBootcampDetail } from '@/composables/bootcamps/useBootcampDetail';
-import { useAuthStore } from '@/stores/authStore';
 import { Users, MapPin, Calendar, Clock } from '@lucide/vue';
 
 const route = useRoute();
-const router = useRouter();
-const authStore = useAuthStore();
-
 const id = route.params.id as string;
+
 const {
   bootcamp,
   batches,
@@ -18,6 +15,8 @@ const {
   setSelectedBatch,
   formatRupiah,
   formatSessionDate,
+  handleRegister,
+  isRegisterDisabled,
   isLoading,
   isError,
 } = useBootcampDetail(id);
@@ -33,19 +32,6 @@ const statusConfig = {
   coming_soon: { label: 'Segera Hadir', class: 'bg-amber-100 text-amber-700' },
   closed: { label: 'Pendaftaran Ditutup', class: 'bg-gray-100 text-gray-500' },
 };
-
-// Tombol daftar — cek login, redirect jika belum
-function handleRegister() {
-  if (!authStore.user) {
-    localStorage.setItem('redirect_after_login', route.fullPath);
-    router.push('/auth/login');
-    return;
-  }
-  // Phase 4: buka modal checkout
-}
-
-const isRegisterDisabled = (status: string, quota: number) =>
-  status !== 'open' || quota >= 100;
 </script>
 
 <template>
