@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useCourseDetail } from '@/composables/courses/useCourseDetail';
 import { useProgress } from '@/composables/courses/useProgress';
+import { useCheckout } from '@/composables/checkout/useCheckout';
 import VideoPlayer from '@/components/course/VideoPlayer.vue';
 import QuizPlayer from '@/components/course/QuizPlayer.vue';
 import TaskPlayer from '@/components/course/TaskPlayer.vue';
@@ -16,6 +18,17 @@ const { courseData, isLoading, isError, activeLessonId, activeLesson, nextLesson
   useCourseDetail(courseId);
 
 const { isPending, handleMarkComplete, handleVideoEnded } = useProgress(courseId, activeLesson);
+const { startCheckout, isPending: isCheckingOut } = useCheckout(courseId);
+
+const isEnrolled = computed(() => courseData.value?.course.isEnrolled ?? true);
+console.log("isEnrolled", isEnrolled?.value);
+
+const course = computed(() => courseData.value?.course ?? null);
+console.log('course', course?.value);
+
+
+const formatRupiah = (price: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(price);
 </script>
 
 <template>
@@ -140,6 +153,24 @@ const { isPending, handleMarkComplete, handleVideoEnded } = useProgress(courseId
                 Selanjutnya →
               </button>
             </div>
+          </div>
+
+          <!-- CTA beli kurs — untuk course berbayar yang belum dibeli -->
+          <div
+            v-if="auth.isAuthenticated && course && !course.isFree && !isEnrolled"
+            class="mt-4 flex items-center justify-between gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg"
+          >
+            <div>
+              <p class="text-sm font-semibold text-indigo-800">Beli kurs ini untuk akses penuh</p>
+              <p class="text-lg font-bold text-indigo-700">{{ formatRupiah(course.price) }}</p>
+            </div>
+            <button
+              class="px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition shrink-0"
+              :disabled="isCheckingOut"
+              @click="startCheckout()"
+            >
+              {{ isCheckingOut ? 'Memproses...' : 'Beli Sekarang' }}
+            </button>
           </div>
 
           <!-- Prompt login untuk pengunjung yang belum masuk -->

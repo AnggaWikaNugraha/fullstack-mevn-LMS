@@ -4,6 +4,8 @@ import courseRoutes from './courseRoutes';
 import bootcampRoutes from './bootcampRoutes';
 import quizRoutes from './quizRoutes';
 import taskRoutes from './taskRoutes';
+import checkoutRoutes from './checkoutRoutes';
+import enrollmentRoutes from './enrollmentRoutes';
 
 const router = Router();
 
@@ -16,5 +18,7 @@ router.use('/courses', courseRoutes);
 router.use('/bootcamps', bootcampRoutes);
 router.use('/quiz', quizRoutes);
 router.use('/tasks', taskRoutes);
+router.use('/checkout', checkoutRoutes);
+router.use('/enrollments', enrollmentRoutes);
 
 export default router;

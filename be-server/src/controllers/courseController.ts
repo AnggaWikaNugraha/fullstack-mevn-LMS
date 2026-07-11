@@ -4,6 +4,7 @@ import Module from '../models/Module';
 import Chapter from '../models/Chapter';
 import Lesson, { ILesson } from '../models/Lesson';
 import Progress from '../models/Progress';
+import Enrollment from '../models/Enrollment';
 import { AuthRequest } from '../middlewares/authMiddleware';
 
 // ─── Daftar Kurs ──────────────────────────────────────────────────────────────
@@ -92,22 +93,36 @@ export const getCourseDetail = async (req: AuthRequest, res: Response, next: Nex
 
     const lessons = await Lesson.find({ chapterId: { $in: chapterIds } }).sort({ order: 1 });
 
-    // Kumpulkan ID lesson yang sudah diselesaikan user (kosong jika belum login)
+    // Cek enrollment hanya untuk course berbayar dan user yang sudah login
+    // - course gratis → skip query, semua user bisa akses
+    // - belum login (req.userId undefined) → skip query, isEnrolled tetap false
+    let isEnrolled = false;
+    if (!course.isFree && req.userId) {
+      // Cari dokumen enrollment milik user ini untuk course ini
+      // findOne mengembalikan objek jika ketemu, null jika tidak ada
+      const enrollment = await Enrollment.findOne({ userId: req.userId, courseId: id });
+      // !! mengubah objek/null ke boolean: objek → true, null → false
+      isEnrolled = !!enrollment;
+    }
+
+    // Kumpulkan ID lesson yang sudah diselesaikan user (kosong jika belum login / belum enrolled)
     const doneSet = new Set<string>();
-    if (req.userId) {
+    if (req.userId && (course.isFree || isEnrolled)) {
       const progressRecords = await Progress.find({ userId: req.userId, courseId: id });
       progressRecords.forEach((p) => doneSet.add(p.lessonId.toString()));
     }
 
     // Hitung is_done dan is_locked per lesson secara berurutan (global order).
     //
-    // is_locked di DB menentukan tipe lesson:
-    //   false → preview gratis, selalu bisa ditonton siapa saja
-    //   true  → dikunci: belum login = terkunci, sudah login = cek progress lesson sebelumnya
-    //
-    // prevDone melacak apakah lesson tepat sebelumnya sudah selesai.
+    // Gate berlapis:
+    //   1. Course berbayar + belum enrolled → semua lesson terkunci (tampilkan CTA beli)
+    //   2. is_locked di DB = false → preview gratis, selalu terbuka
+    //   3. is_locked di DB = true → cek sequential progress (enrolled atau course gratis)
     let prevDone = true;
     const lessonStatusMap = new Map<string, { is_done: boolean; is_locked: boolean }>();
+
+    // Jika course berbayar dan user belum enrolled, semua lesson dikunci
+    const blockedByEnrollment = !course.isFree && !isEnrolled;
 
     for (const module of modules) {
       const moduleChapters = chapters.filter(
@@ -122,17 +137,21 @@ export const getCourseDetail = async (req: AuthRequest, res: Response, next: Nex
           let is_done: boolean;
           let is_locked: boolean;
 
-          if (!lesson.is_locked) {
+          if (blockedByEnrollment && lesson.is_locked) {
+            // Belum beli course berbayar — lesson locked (kecuali preview gratis)
+            is_done = false;
+            is_locked = true;
+          } else if (!lesson.is_locked) {
             // Lesson preview — selalu terbuka tanpa perlu login atau progress
             is_done = rawIsDone;
             is_locked = false;
-            prevDone = rawIsDone; // tetap lacak progress meskipun lesson gratis
+            prevDone = rawIsDone;
           } else if (!req.userId) {
             // Lesson berbayar + belum login → wajib login
             is_done = false;
             is_locked = true;
           } else {
-            // Lesson berbayar + sudah login → cek apakah lesson sebelumnya selesai
+            // Lesson berbayar + sudah login + enrolled → cek sequential progress
             is_done = rawIsDone;
             is_locked = !prevDone;
             prevDone = rawIsDone;
@@ -176,6 +195,7 @@ export const getCourseDetail = async (req: AuthRequest, res: Response, next: Nex
         course: {
           ...course.toJSON(),
           modules: modulesWithContent,
+          isEnrolled: course.isFree ? true : isEnrolled,
         },
       },
     });

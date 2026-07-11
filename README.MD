@@ -1253,7 +1253,160 @@ submittedAt     → Date
 
 ### Phase 4 — Checkout & Subscription
 
-> Coming Soon
+> Per-course purchase (lifetime access). Payment via Midtrans Snap. Free courses (`isFree: true`) skip checkout entirely. `Order` locks in price at creation time. Enrollment dibuat oleh Midtrans webhook setelah settlement.
+
+#### 4.1 Course Checkout
+
+**Checkout Flow:**
+
+```
+User navigates to /courses/:id
+          |
+          ▼
+    GET /api/courses/:id  (optionalProtect — middleware authMiddleware.ts)
+    Response: { course: { ...courseData, isEnrolled: boolean, modules: [...] } }
+          |
+          ├─→ course.isFree = true    → semua lesson accessible, skip enrollment check
+          ├─→ isEnrolled: true        → tampilkan konten kursus normal
+          └─→ isEnrolled: false
+                    |
+                    ▼
+              CourseDetailView.vue tampilkan tombol "Beli Kurs"
+              User klik → useCheckout.ts dipanggil
+                    |
+                    ▼
+              POST /api/checkout/create-order  { courseId }
+              ├─→ course gratis       → 400 error
+              ├─→ sudah enrolled      → 409 error
+              ├─→ ada pending order   → reuse snap_token yang ada
+              └─→ buat Order baru (status: 'pending') + generate Snap token
+                    |
+                    ▼
+              FE: loadSnapScript() → inject snap.js ke <head>
+              window.snap.pay(snap_token, { onSuccess, onPending, onError, onClose })
+              Midtrans popup terbuka
+                    |
+              User bayar
+                    |
+                    ▼
+              ┌─────────────────────────────────────────────────┐
+              │  Dua path berjalan paralel                       │
+              └─────────────────────────────────────────────────┘
+                    ↓                              ↓
+          Snap callback (FE)            Midtrans POST webhook (server-to-server)
+          onSuccess / onPending         POST /api/checkout/webhook
+          router.push ke               1. Verifikasi SHA512 signature_key
+          /checkout/result             2. Order.status = 'paid', paidAt = now
+          ?order_id=                   3. Enrollment.findOneAndUpdate (upsert)
+          &course_id=                     { userId, courseId, orderId, enrolledAt }
+          &result=success/pending
+                    ↓
+          CheckoutResultView.vue
+          useEnrollment(courseId).startPolling(onEnrolled, onTimeout)
+          setiap 2 detik, max 15x (30 detik):
+            GET /api/enrollments/check/:courseId
+            ├─→ isEnrolled: true   → clearInterval → router.push /courses/:id ✅
+            └─→ isEnrolled: false  → tunggu webhook isi DB, coba lagi
+                    |
+              (setelah 30 detik, webhook tidak sampai)
+                    ↓
+              isTimedOut = true
+              tampilkan warning + tombol "Cek Status Pembayaran"
+                    |
+              user klik → manualVerify(orderId)
+                    ↓
+              GET /api/checkout/verify/:orderId
+              BE tanya langsung ke Midtrans API
+              ├─→ settled → upsert Enrollment → router.push /courses/:id ✅
+              └─→ belum   → tombol aktif kembali, user bisa coba lagi
+```
+
+**Snap.js URL:**
+```
+Sandbox   : https://app.sandbox.midtrans.com/snap/snap.js
+Production: https://app.midtrans.com/snap/snap.js
+```
+> Ganti `src` di `loadSnapScript()` pada `useCheckout.ts` sesuai environment.
+
+**Local Development — Setup Webhook dengan ngrok:**
+```bash
+# 1. Install ngrok
+brew install ngrok
+
+# 2. Tambahkan auth token (daftar gratis di ngrok.com)
+ngrok config add-authtoken <your_token>
+
+# 3. Expose BE server
+ngrok http 3000
+# → output: https://xxxx.ngrok-free.app
+
+# 4. Set Notification URL di Midtrans Dashboard
+#    Settings → Payment → Notification URL:
+#    https://xxxx.ngrok-free.app/api/checkout/webhook
+```
+> URL ngrok berubah setiap restart (free plan) — update ulang di Midtrans Dashboard setiap kali ngrok dijalankan ulang.
+
+**Fallback — Manual Verify (tanpa ngrok):**
+
+`GET /api/checkout/verify/:orderId` — BE aktif tanya status ke Midtrans API langsung, upsert Enrollment jika settled. Berguna saat webhook tidak bisa jangkau localhost.
+
+**Data Model — Order:**
+```
+userId         → ref to User
+courseId       → ref to Course
+amount         → number (locked-in price at order creation)
+status         → 'pending' | 'paid' | 'failed' | 'expired'
+snap_token     → string (Midtrans Snap token)
+midtrans_order_id → string (unique, format: ORD-{base36timestamp}-{random6}, max 50 chars)
+paidAt         → Date | null
+```
+
+**Data Model — Enrollment:**
+```
+userId    → ref to User
+courseId  → ref to Course
+orderId   → ref to Order
+enrolledAt → Date
+```
+> Unique index on `[userId, courseId]`. Created only after Midtrans `settlement` webhook.
+
+**Course Model Changes:**
+```
+price → number (harga dalam rupiah, 0 jika isFree)
+```
+
+**getCourseDetail Changes:**
+```
+isFree = true           → skip enrollment check, all lessons follow sequential progress
+isFree = false
+  └─ not enrolled       → all locked lessons return is_locked: true + isEnrolled: false
+  └─ enrolled           → sequential progress logic as before
+```
+> Response includes `isEnrolled: boolean` field at course level.
+
+**BE Tasks:**
+- [x] Update `Course` model — add `price` field
+- [x] `Order` model (`userId`, `courseId`, `amount`, `status`, `snap_token`, `midtrans_order_id`, `paidAt`)
+- [x] `Enrollment` model (`userId`, `courseId`, `orderId`, `enrolledAt`) — unique index `[userId, courseId]`
+- [x] `POST /api/checkout/create-order` — validate, reuse pending order or create new, return Snap token
+- [x] `POST /api/checkout/webhook` — **primary**: Midtrans push notification, verify signature, update Order, upsert Enrollment
+- [x] `GET /api/checkout/verify/:orderId` — **fallback**: BE aktif tanya ke Midtrans API, upsert Enrollment jika settled (untuk local dev / tombol "Cek Status")
+- [x] `GET /api/enrollments/check/:courseId` — return `{ isEnrolled: boolean }` — dipolling FE setelah bayar
+- [x] Update `getCourseDetail` — add enrollment gate + `isEnrolled` in response
+- [x] Register `checkoutRoutes` and `enrollmentRoutes` in `routes/index.ts`
+- [x] Update `courseSeeder` — add `price` field to all courses
+
+**FE Tasks:**
+- [x] `src/types/courses.ts` — add `price` to `Course`, add `isEnrolled` to `CourseDetail`
+- [x] `src/types/checkout.ts` — `Order`, `CreateOrderResponse`, `EnrollmentStatus`
+- [x] `src/api/checkout.ts` — `createOrder()`, `verifyPayment()` (fallback)
+- [x] `src/api/enrollments.ts` — `checkEnrollment()`
+- [x] `src/composables/checkout/useCheckout.ts` — load snap.js, createOrder mutation, snap.pay callbacks
+- [x] `src/composables/checkout/useEnrollment.ts` — polls `checkEnrollment()` setiap 2s hingga webhook mengisi DB; `onTimeout` callback setelah 30 detik; `manualVerify(orderId)` sebagai fallback ke verify endpoint
+- [x] `CheckoutResultView.vue` — success/pending/error state; polling dengan timeout handler; tampilkan tombol "Cek Status Pembayaran" jika webhook terlambat; redirect ke course setelah enrolled
+- [x] `CourseCard.vue` — show price badge or "Free" label
+- [x] `CourseDetailView.vue` — show "Beli Kurs" CTA if not enrolled, hide progress actions
+- [x] Add route `/checkout/result` → `CheckoutResultView`
 
 ### Phase 5 — User Profile & Purchase History
 
@@ -1312,6 +1465,15 @@ submittedAt     → Date
 | POST   | /api/tasks/:lessonId/submit           | Submit task URL + note, auto-creates Progress                       | JWT  |
 | GET    | /api/tasks/:lessonId/my-submission    | Task submission for current user (null if none)                     | JWT  |
 
+### Checkout & Enrollment
+
+| Method | Endpoint                              | Description                                                                          | Auth |
+|--------|---------------------------------------|--------------------------------------------------------------------------------------|------|
+| POST   | /api/checkout/create-order            | Create order + generate Midtrans Snap token (reuses pending order if exists)         | JWT  |
+| POST   | /api/checkout/webhook                 | **Primary** — Midtrans push: verify signature, update Order, upsert Enrollment       | -    |
+| GET    | /api/checkout/verify/:orderId         | **Fallback** — BE pulls status from Midtrans API, upsert Enrollment if settled       | JWT  |
+| GET    | /api/enrollments/check/:courseId      | Cek status enrollment user — dipolling FE setelah bayar hingga webhook mengisi DB    | JWT  |
+
 > More endpoints will be added per phase.
 
 ---
@@ -1332,6 +1494,9 @@ submittedAt     → Date
 | `GOOGLE_CLIENT_ID`      | `xxxx.apps.googleusercontent.com`            | Google OAuth client ID                   |
 | `GOOGLE_CLIENT_SECRET`  | `GOCSPX-xxxx`                                | Google OAuth client secret               |
 | `GOOGLE_REDIRECT_URI`   | `http://localhost:5173/auth/google/callback` | Must match Google Console & FE env       |
+| `MIDTRANS_SERVER_KEY`   | `Mid-server-xxxx`                            | Midtrans server key (never exposed to FE)|
+| `MIDTRANS_CLIENT_KEY`   | `Mid-client-xxxx`                            | Midtrans client key                      |
+| `MIDTRANS_IS_PRODUCTION`| `false`                                      | `true` for production environment        |
 
 ### Frontend (`fe-apps/.env`)
 
@@ -1339,6 +1504,188 @@ submittedAt     → Date
 |---------------------------|----------------------------------------------|------------------------------------|
 | `VITE_API_URL`            | `http://localhost:3000/api`                  | BE API base URL                    |
 | `VITE_GOOGLE_CLIENT_ID`   | `xxxx.apps.googleusercontent.com`            | Google OAuth client ID (same as BE)|
-| `VITE_GOOGLE_REDIRECT_URI`| `http://localhost:5173/auth/google/callback` | Must match BE env & Google Console |
+| `VITE_GOOGLE_REDIRECT_URI`   | `http://localhost:5173/auth/google/callback` | Must match BE env & Google Console |
+| `VITE_MIDTRANS_CLIENT_KEY`   | `Mid-client-xxxx`                            | Midtrans client key (for snap.js)  |
+
+---
+
+## Database Schema
+
+### Entity Relationship Diagram
+
+```
+┌─────────────┐       ┌─────────────┐
+│    User     │──1:N──│   Session   │
+│─────────────│       │─────────────│
+│ _id         │       │ userId (FK) │
+│ name        │       │ deviceId    │
+│ email       │       │ refreshToken│
+│ password?   │       │ expiredAt   │
+│ googleId?   │       └─────────────┘
+│ role        │
+│ isVerified  │       ┌─────────────┐
+│ otp?        │──1:N──│  Progress   │
+└──────┬──────┘       │─────────────│
+       │              │ userId (FK) │
+       │              │ lessonId(FK)│
+       │              │ courseId(FK)│
+       │              │ completedAt │
+       │              └─────────────┘
+       │
+       │              ┌─────────────┐
+       ├───────1:N────│ QuizAttempt │
+       │              │─────────────│
+       │              │ userId (FK) │
+       │              │ lessonId(FK)│
+       │              │ courseId(FK)│
+       │              │ answers[]   │
+       │              │ score       │
+       │              │ passed      │
+       │              └─────────────┘
+       │
+       │              ┌──────────────────┐
+       ├───────1:N────│  TaskSubmission   │
+       │              │──────────────────│
+       │              │ userId (FK)      │
+       │              │ lessonId (FK)    │
+       │              │ courseId (FK)    │
+       │              │ submission_url   │
+       │              │ note?            │
+       │              │ status           │
+       │              └──────────────────┘
+       │
+       │              ┌─────────────┐       ┌─────────────┐
+       └───────1:N────│    Order    │──1:1──│  Enrollment │
+                      │─────────────│       │─────────────│
+                      │ userId (FK) │       │ userId (FK) │
+                      │ courseId(FK)│       │ courseId(FK)│
+                      │ amount      │       │ orderId (FK)│
+                      │ status      │       │ enrolledAt  │
+                      │ snap_token  │       └─────────────┘
+                      │ midtrans_id │
+                      │ paidAt?     │
+                      └─────────────┘
+
+
+┌─────────────┐
+│   Course    │
+│─────────────│
+│ _id         │
+│ title       │
+│ description │
+│ cover_url   │
+│ topic       │
+│ topic_name  │
+│ level       │
+│ isFree      │
+│ price       │
+│ video_amount│
+│total_lessons│
+│course_durat.│
+└──────┬──────┘
+       │
+       │ 1:N
+       ▼
+┌─────────────┐
+│   Module    │
+│─────────────│
+│ courseId(FK)│
+│ title       │
+│ order       │
+│module_durat.│
+└──────┬──────┘
+       │
+       │ 1:N
+       ▼
+┌─────────────┐
+│   Chapter   │
+│─────────────│
+│ moduleId(FK)│
+│ title       │
+│ order       │
+│chapter_dur. │
+└──────┬──────┘
+       │
+       │ 1:N
+       ▼
+┌───────────────┐       ┌──────────────┐
+│    Lesson     │──1:N──│ QuizQuestion │
+│───────────────│       │──────────────│
+│ chapterId(FK) │       │ lessonId(FK) │
+│ courseId (FK) │       │ question     │
+│ title         │       │ options[]    │
+│ type          │       │ correct_index│
+│ order         │       │ order        │
+│ duration      │       └──────────────┘
+│ video_url?    │
+│ description   │
+│ is_locked     │
+│ passing_score │
+└───────────────┘
+
+
+┌──────────────────┐
+│ BootcampPackage  │
+│──────────────────│
+│ title            │
+│ description      │
+│ image_url        │
+│ status           │
+│ mentors[]        │
+│  └ name          │
+│  └ image_url     │
+│  └ occupation    │
+└────────┬─────────┘
+         │
+         │ 1:N
+         ▼
+┌──────────────────┐
+│  BootcampBatch   │
+│──────────────────│
+│ packageId (FK)   │
+│ title            │
+│ sub_title        │
+│ description      │
+│ started_at       │
+│ ended_at         │
+│ quota_used_%     │
+│ price            │
+│ strikethrough_pr │
+│ package_type     │
+└────────┬─────────┘
+         │
+         │ 1:N
+         ▼
+┌──────────────────┐
+│ BootcampSession  │
+│──────────────────│
+│ batchId (FK)     │
+│ title            │
+│ session_name     │
+│ session_date     │
+│ start_time       │
+│ end_time         │
+└──────────────────┘
+```
+
+### Collections Summary
+
+| Collection         | Indexes                                      | Notes                                      |
+|--------------------|----------------------------------------------|--------------------------------------------|
+| `users`            | `email` (unique)                             | `password` optional (Google-only users)    |
+| `sessions`         | `userId + deviceId` (unique), TTL on `refreshExpiredAt` | One active session per device   |
+| `courses`          | -                                            | `price = 0` when `isFree = true`           |
+| `modules`          | `courseId`                                   | Ordered with `order` field                 |
+| `chapters`         | `moduleId`                                   | Ordered with `order` field                 |
+| `lessons`          | `chapterId`, `courseId`                      | `is_locked` = free preview flag in DB; computed dynamically in API |
+| `progresses`       | `[userId, lessonId]` (unique)                | Upsert-safe                                |
+| `quizquestions`    | `lessonId`                                   | `correct_index` never returned to FE       |
+| `quizattempts`     | `[userId, lessonId]`                         | Multiple attempts allowed; `my-attempt` returns latest |
+| `tasksubmissions`  | `[userId, lessonId]` (unique)                | One submission per user per lesson         |
+| `orders`           | `midtrans_order_id` (unique), `[userId, courseId, status]` | Pending orders reused to avoid duplicate Snap tokens |
+| `enrollments`      | `[userId, courseId]` (unique)                | Created after payment settlement           |
+| `bootcamppackages` | -                                            | Mentors embedded (not a separate collection) |
+| `bootcampbatches`  | `packageId`                                  | `starting_price` aggregated from cheapest batch |
+| `bootcampsessions` | `batchId`                                    | -                                          |
 
 ---

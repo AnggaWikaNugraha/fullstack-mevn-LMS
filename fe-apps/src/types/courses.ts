@@ -9,6 +9,7 @@ export interface Course {
   topic_name: string;
   level: 'beginner' | 'intermediate' | 'advanced';
   isFree: boolean;
+  price: number;
   video_amount: number;
   total_lessons: number;
   course_duration: number;
@@ -62,6 +63,7 @@ export interface Module {
 
 export interface CourseDetail extends Course {
   modules: Module[];
+  isEnrolled: boolean;
 }
 
 export interface CourseDetailResponse {

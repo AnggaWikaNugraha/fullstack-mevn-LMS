@@ -15,6 +15,9 @@ const levelColor: Record<string, string> = {
   intermediate: 'bg-yellow-100 text-yellow-700',
   advanced: 'bg-red-100 text-red-700',
 };
+
+const formatRupiah = (price: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(price);
 </script>
 
 <template>
@@ -47,9 +50,13 @@ const levelColor: Record<string, string> = {
         {{ course.title }}
       </h3>
 
-      <div class="flex items-center gap-1 text-xs text-gray-500">
-        <PlayCircle class="w-3.5 h-3.5" />
-        <span>{{ course.video_amount }} videos</span>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1 text-xs text-gray-500">
+          <PlayCircle class="w-3.5 h-3.5" />
+          <span>{{ course.video_amount }} videos</span>
+        </div>
+        <span v-if="course.isFree" class="text-xs font-semibold text-indigo-600">Gratis</span>
+        <span v-else class="text-sm font-bold text-gray-900">{{ formatRupiah(course.price) }}</span>
       </div>
     </div>
   </RouterLink>
