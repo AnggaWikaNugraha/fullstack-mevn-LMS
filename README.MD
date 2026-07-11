@@ -22,7 +22,13 @@ src/
 │   ├── client.ts              # Axios instance + interceptors (silent refresh)
 │   ├── auth.ts                # All auth API calls
 │   ├── courses.ts             # Course + lesson + progress API calls
-│   └── bootcamps.ts           # Bootcamp API calls
+│   ├── bootcamps.ts           # Bootcamp API calls
+│   ├── quiz.ts                # Quiz API calls
+│   ├── tasks.ts               # Task API calls
+│   ├── checkout.ts            # Checkout + payment verify API calls
+│   ├── enrollments.ts         # Enrollment check + my-courses API calls
+│   ├── users.ts               # User profile + change-password API calls
+│   └── orders.ts              # Purchase history API calls
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -31,57 +37,87 @@ src/
 │   │   ├── useOtpVerification.ts
 │   │   ├── useForgotPassword.ts
 │   │   ├── useResetPassword.ts
-│   │   └── useGoogleAuth.ts   # redirectToGoogle() builds OAuth URL; handleCallback(code) → call /api/auth/google → store tokens
-│   └── courses/               # Course composables
-│       ├── useCourses.ts      # useQuery for course list + topic filter
-│       ├── useCourseDetail.ts # useQuery for course detail + lesson list
-│       └── useProgress.ts     # useMutation for mark lesson complete
+│   │   └── useGoogleAuth.ts
+│   ├── courses/               # Course composables
+│   │   ├── useCourses.ts      # useQuery for course list + topic filter
+│   │   ├── useCourseDetail.ts # useQuery for course detail + lesson list + course/isEnrolled computed
+│   │   ├── useProgress.ts     # useMutation for mark lesson complete
+│   │   ├── useQuiz.ts         # Quiz questions, attempt, submit mutation
+│   │   └── useTask.ts         # Task submission query + submit mutation
+│   ├── bootcamps/
+│   │   ├── useBootcamps.ts
+│   │   └── useBootcampDetail.ts
+│   ├── checkout/
+│   │   ├── useCheckout.ts     # load snap.js, createOrder, snap.pay callbacks
+│   │   └── useEnrollment.ts   # polling + timeout + manualVerify fallback
+│   ├── enrollments/
+│   │   └── useMyEnrollments.ts  # useQuery for my-courses with progress
+│   ├── orders/
+│   │   └── useOrders.ts         # useQuery for purchase history
+│   └── user/
+│       └── useProfile.ts        # getProfile query + updateProfile + changePassword mutations
 ├── layouts/
-│   ├── DefaultLayout.vue      # Layout with Navbar + Footer
-│   └── AuthLayout.vue         # Split-screen layout (branding left, form right)
+│   ├── DefaultLayout.vue      # Navbar + Footer
+│   ├── AuthLayout.vue         # Split-screen (branding left, form right)
+│   └── ProfileLayout.vue      # Navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) + RouterView
 ├── router/
 │   ├── index.ts               # Vue Router + navigation guard
 │   └── routes/
 │       ├── auth.ts            # Auth routes (guest-only)
-│       ├── public.ts          # Public routes under DefaultLayout (home, courses, bootcamp)
-│       └── protected.ts       # Protected routes under DefaultLayout (requiresAuth per child)
+│       ├── public.ts          # Public routes under DefaultLayout
+│       └── protected.ts       # Protected routes under ProfileLayout (requiresAuth)
 ├── stores/
 │   ├── authStore.ts           # Pinia — access token (memory), user, refresh token (localStorage)
 │   └── errorStore.ts          # Pinia — global error modal state
 ├── types/
-│   ├── api.ts                 # Shared ApiResponse<T> generic type
-│   ├── auth.ts                # TypeScript types for auth requests & responses
-│   └── courses.ts             # TypeScript types for Course, Lesson, Topic, Bootcamp, Progress
+│   ├── api.ts                 # Shared ApiResponse<T> + Pagination
+│   ├── auth.ts                # Auth requests/responses + UpdateProfilePayload + ChangePasswordPayload
+│   ├── courses.ts             # Course, Lesson, Module, Chapter, CourseDetail, Progress
+│   ├── bootcamps.ts           # Bootcamp types
+│   ├── checkout.ts            # Order, CreateOrderResponse, EnrollmentStatus, VerifyPaymentResponse
+│   ├── quiz.ts                # QuizQuestion, QuizAttemptResult, TaskSubmission
+│   ├── enrollments.ts         # MyCourse, MyCoursesResponse
+│   └── orders.ts              # MyOrder, MyOrdersResponse
+├── utils/
+│   └── format.ts              # formatRupiah, formatDate, progressPercent
 ├── views/
-│   ├── HomeView.vue           # Landing page (hero + courses + bootcamp + benefits)
+│   ├── HomeView.vue
 │   ├── courses/
-│   │   ├── CourseDetailView.vue   # Course info + lesson sidebar
-│   │   └── LessonView.vue         # Video player page
+│   │   └── CourseDetailView.vue
 │   ├── bootcamps/
+│   │   ├── BootcampsView.vue
 │   │   └── BootcampDetailView.vue
+│   ├── checkout/
+│   │   └── CheckoutResultView.vue
+│   ├── user/
+│   │   ├── MyCoursesView.vue        # Grid kursus yang sudah dibeli + progress bar
+│   │   ├── ProfileView.vue          # Edit nama, avatar URL, ganti password
+│   │   └── PurchaseHistoryView.vue  # List riwayat order + status badge
 │   └── auth/
 │       ├── LoginView.vue
 │       ├── RegisterView.vue
-│       ├── OtpVerificationView.vue  # Used for both register and reset password (via history.state.mode)
+│       ├── OtpVerificationView.vue
 │       ├── ForgotPasswordView.vue
 │       ├── ResetPasswordView.vue
-│       └── GoogleCallbackView.vue  # Receives redirect from Google, extracts code, calls BE
+│       └── GoogleCallbackView.vue
 └── components/
     ├── ui/
-    │   ├── GlobalErrorModal.vue    # Global error modal (network / server errors)
-    │   ├── AppNavbar.vue           # Sticky navbar — desktop + mobile menu, auth state (login/logout)
-    │   ├── AppFooter.vue           # Footer — logo, nav links, social media icons (TikTok, LinkedIn, Instagram, X)
-    │   └── GoogleSignInButton.vue  # Google branding button — calls redirectToGoogle() on click
+    │   ├── GlobalErrorModal.vue
+    │   ├── AppNavbar.vue           # Dropdown user menu (Course Saya, Profil, Riwayat Pembelian, Logout)
+    │   ├── AppFooter.vue
+    │   └── GoogleSignInButton.vue
     ├── sections/
-    │   ├── HeroSection.vue       # Image slider (auto-advance)
-    │   ├── CoursesSection.vue    # Course cards + topic filter pills
-    │   ├── BootcampSection.vue   # Bootcamp cards
-    │   └── BenefitsSection.vue   # Company profile — alternating image/text blocks
+    │   ├── HeroSection.vue
+    │   ├── CoursesSection.vue
+    │   ├── BootcampSection.vue
+    │   └── BenefitsSection.vue
     └── course/
-        ├── CourseCard.vue        # Course card (cover, level badge, topic name, video count, Free/Premium)
-        ├── BootcampCard.vue      # Bootcamp card (image, title, status badge, starting price)
-        ├── CourseSidebar.vue     # Module accordion → Chapter → Lesson list (is_done, is_locked icons, active highlight) + progress bar
-        └── VideoPlayer.vue       # YouTube IFrame API embed — emits 'ended' event when video finishes
+        ├── CourseCard.vue
+        ├── BootcampCard.vue
+        ├── CourseSidebar.vue
+        ├── VideoPlayer.vue
+        ├── QuizPlayer.vue
+        └── TaskPlayer.vue
 ```
 
 ### Backend (`be-server/src/`)
@@ -92,39 +128,58 @@ src/
 │   ├── database.ts        # MongoDB connection
 │   └── mailer.ts          # Nodemailer Gmail setup
 ├── controllers/
-│   ├── authController.ts      # Auth route handlers
-│   ├── courseController.ts    # Course, topic, lesson, and progress route handlers
-│   └── bootcampController.ts  # Bootcamp package, batch, session route handlers (Phase 2.3)
+│   ├── authController.ts        # Auth route handlers
+│   ├── courseController.ts      # Course, topic, lesson, progress route handlers
+│   ├── bootcampController.ts    # Bootcamp package, batch, session route handlers
+│   ├── checkoutController.ts    # createOrder, handleWebhook, verifyPayment
+│   ├── enrollmentController.ts  # checkEnrollment, getMyCourses
+│   ├── quizController.ts        # Quiz questions, submit, my-attempt
+│   ├── taskController.ts        # Task submit, my-submission
+│   ├── userController.ts        # getProfile, updateProfile, changePassword
+│   └── orderController.ts       # getMyOrders
 ├── middlewares/
-│   ├── authMiddleware.ts  # protect (JWT + session check) + optionalProtect (public endpoints with optional auth)
-│   ├── errorHandler.ts    # Global error handler
-│   ├── rateLimiter.ts     # Rate limit configs per endpoint
-│   └── requestLogger.ts   # Log request method, url, payload & response (Asia/Jakarta)
+│   ├── authMiddleware.ts  # protect + optionalProtect
+│   ├── errorHandler.ts
+│   ├── rateLimiter.ts
+│   └── requestLogger.ts
 ├── models/
-│   ├── User.ts            # User mongoose model
-│   ├── Session.ts         # Device session model (TTL index)
-│   ├── Course.ts          # Course mongoose model
-│   ├── Module.ts          # Course module model
-│   ├── Chapter.ts         # Module chapter model
-│   ├── Lesson.ts          # Lesson model (type: video | quiz, video_url, duration, is_locked)
-│   ├── Progress.ts        # User lesson progress model
-│   ├── BootcampPackage.ts  # Bootcamp package model
-│   ├── BootcampBatch.ts    # Bootcamp batch model (multiple runs of same package)
-│   └── BootcampSession.ts  # Individual session schedule per batch
+│   ├── User.ts             # name, email, password?, googleId?, avatar_url?, role, isVerified, otp
+│   ├── Session.ts          # Device session (TTL index)
+│   ├── Course.ts           # title, cover_url, topic, level, isFree, price, stats
+│   ├── Module.ts
+│   ├── Chapter.ts
+│   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
+│   ├── Progress.ts         # userId, lessonId, courseId — unique [userId, lessonId]
+│   ├── QuizQuestion.ts     # options[], correct_index (never sent to FE)
+│   ├── QuizAttempt.ts      # answers[], score, passed — multiple attempts allowed
+│   ├── TaskSubmission.ts   # submission_url, note, status — unique [userId, lessonId]
+│   ├── Order.ts            # amount, status, snap_token, midtrans_order_id, paidAt
+│   ├── Enrollment.ts       # userId, courseId, orderId — unique [userId, courseId]
+│   ├── BootcampPackage.ts
+│   ├── BootcampBatch.ts
+│   └── BootcampSession.ts
 ├── routes/
 │   ├── index.ts
-│   ├── authRoutes.ts      # Auth routes
-│   ├── courseRoutes.ts    # Course, topic, lesson, and progress routes
-│   └── bootcampRoutes.ts  # Bootcamp routes (Phase 2.3)
+│   ├── authRoutes.ts
+│   ├── courseRoutes.ts
+│   ├── bootcampRoutes.ts
+│   ├── quizRoutes.ts
+│   ├── taskRoutes.ts
+│   ├── checkoutRoutes.ts
+│   ├── enrollmentRoutes.ts
+│   ├── userRoutes.ts        # GET/PATCH /users/profile, PATCH /users/change-password
+│   └── orderRoutes.ts       # GET /orders/my-orders
 ├── seeds/
-│   ├── courseSeeder.ts    # Sample course data — npm run seed:courses
-│   ├── lessonSeeder.ts    # Sample modules, chapters, lessons — npm run seed:lessons
-│   └── bootcampSeeder.ts  # Sample bootcamp data (Phase 2.3)
+│   ├── courseSeeder.ts      # npm run seed:courses
+│   ├── lessonSeeder.ts      # npm run seed:lessons
+│   ├── bootcampSeeder.ts    # npm run seed:bootcamps
+│   ├── allLessonsSeeder.ts  # npm run seed:all-lessons (all 6 courses)
+│   └── allQuizSeeder.ts     # npm run seed:all-quiz (5 questions × 15 quiz lessons)
 ├── templates/
-│   └── otpEmail.ts        # OTP email HTML template (verification & reset)
+│   └── otpEmail.ts
 ├── validations/
-│   └── authValidation.ts  # Zod schemas for auth endpoints
-└── index.ts               # Entry point
+│   └── authValidation.ts
+└── index.ts
 ```
 ---
 
@@ -170,12 +225,13 @@ src/
 | Course Detail + Video Player                      | ✅ Done         |
 | Company Profile Section (Benefits + Footer)       | ✅ Done         |
 | Bootcamp List & Detail                            | ✅ Done         |
+| Quiz & Task                                       | ✅ Done         |
+| Checkout & Payment (Midtrans)                     | ✅ Done         |
+| Course Saya (My Courses)                          | ✅ Done         |
+| User Profile (edit nama, avatar, password)        | ✅ Done         |
+| Purchase History (riwayat pembelian)              | ✅ Done         |
 | Live Session (Agora RTC)                          | 🔄 Coming Soon  |
-| Quiz & Task                                       | Coming Soon |
-| Checkout & Subscription                           | Coming Soon |
-| User Profile                                      | Coming Soon |
-| Purchase History                                  | Coming Soon |
-| Notifications                                     | Coming Soon |
+| Notifications                                     | 🔄 Coming Soon  |
 
 ---
 
@@ -1408,9 +1464,11 @@ isFree = false
 - [x] `CourseDetailView.vue` — show "Beli Kurs" CTA if not enrolled, hide progress actions
 - [x] Add route `/checkout/result` → `CheckoutResultView`
 
-### Phase 5 — User Profile & Purchase History
+### Phase 5 — User Profile & Purchase History ✅
 
-#### 5.1 My Courses (Kursus Saya)
+> Semua route protected: `requiresAuth: true`. Menggunakan `ProfileLayout.vue` yang menyediakan navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) — mobile pakai pill nav.
+
+#### 5.1 My Courses (Course Saya)
 
 **Flow:**
 
@@ -1419,36 +1477,35 @@ User navigates to /my-courses  (requires auth)
           |
           ▼
     GET /api/enrollments/my-courses
-    Response: list enrolled courses + progress per course
+    Response: list enrolled courses + completed_lessons per course
           |
           ▼
     FE: tampilkan card per course
-        - cover, title, level
-        - progress bar (% selesai)
-        - tombol "Lanjut Belajar" → /courses/:id?lesson=<last_active_lesson>
-          |
-          └─→ course 0% → tombol "Mulai Belajar"
-          └─→ course 100% → badge "Selesai" + tombol "Ulangi"
+        - cover, title, tanggal bergabung
+        - progress bar (completed / total_lessons, %)
+        - link "Lanjut Belajar" → /courses/:id
 ```
 
 **Data yang dikembalikan per course:**
 ```
-enrolledAt    → Date
-course        → { _id, title, cover_url, level, topic_name, total_lessons }
-progress      → { completed_lessons, total_lessons, percentage }
-lastLesson    → _id lesson terakhir yang dikerjakan (dari Progress terbaru)
+enrollment_id     → string
+enrolled_at       → Date
+completed_lessons → number (count dari Progress collection)
+course            → { _id, title, cover_url, level, topic_name, total_lessons, ... }
 ```
-> Tidak butuh model baru — query join `Enrollment` + `Progress` + `Course`.
+> Tidak butuh model baru — query join `Enrollment` + `Progress.countDocuments` + populate `Course`.
 
 **BE Tasks:**
-- [ ] `GET /api/enrollments/my-courses` — list enrolled courses + progress percentage per course
+- [x] `GET /api/enrollments/my-courses` — list enrolled courses + `completed_lessons` per course (dihitung dari Progress)
 
 **FE Tasks:**
-- [ ] `src/api/enrollments.ts` — tambah `getMyCourses()`
-- [ ] `src/composables/enrollments/useMyCourses.ts` — `useQuery` untuk enrolled courses
-- [ ] `src/views/profile/MyCoursesView.vue` — grid card enrolled courses + progress
-- [ ] Add route `/my-courses` → `MyCoursesView` (requiresAuth)
-- [ ] `AppNavbar.vue` — tambah link "Kursus Saya" untuk user yang login
+- [x] `src/types/enrollments.ts` — `MyCourse`, `MyCoursesResponse`
+- [x] `src/api/enrollments.ts` — tambah `getMyCourses()`
+- [x] `src/composables/enrollments/useMyEnrollments.ts` — `useQuery` + `courses` computed
+- [x] `src/utils/format.ts` — tambah `formatDate()`, `progressPercent()`
+- [x] `src/views/user/MyCoursesView.vue` — grid card enrolled courses + progress bar
+- [x] Add route `/my-courses` → `MyCoursesView` (requiresAuth, under ProfileLayout)
+- [x] `AppNavbar.vue` — dropdown user menu dengan link "Course Saya"
 
 ---
 
@@ -1460,77 +1517,86 @@ lastLesson    → _id lesson terakhir yang dikerjakan (dari Progress terbaru)
 User navigates to /profile  (requires auth)
           |
           ▼
-    GET /api/auth/me  (sudah ada)
+    GET /api/users/profile
           |
           ▼
-    FE: tampilkan info (nama, email, avatar, metode login)
+    FE: tampilkan form edit (nama, avatar URL)
           |
-    User edit nama / upload foto
+    User submit perubahan
           |
           ▼
     PATCH /api/users/profile  { name, avatar_url }
+    → authStore.setUser(updatedUser) — sinkronkan navbar
           |
     User ganti password (non-Google only)
           |
           ▼
-    PATCH /api/users/change-password  { currentPassword, newPassword }
+    PATCH /api/users/change-password  { currentPassword, newPassword, confirmPassword }
+    BE: validasi currentPassword, skip jika akun Google-only
 ```
 
 **User Model Changes:**
 ```
-avatar_url  → string, optional (URL foto profil — upload ke Cloudinary/S3)
+avatar_url  → string | null, optional (URL foto profil)
 ```
-> Field lain (`name`, `email`, `password`, `googleId`) sudah ada sejak Phase 1.
 
 **BE Tasks:**
-- [ ] Update `User` model — tambah field `avatar_url?: string`
-- [ ] `PATCH /api/users/profile` — update name + avatar_url
-- [ ] `PATCH /api/users/change-password` — validasi current password, update hash (skip jika Google-only user)
+- [x] Update `User` model — tambah field `avatar_url?: string`
+- [x] `GET /api/users/profile` — return user data
+- [x] `PATCH /api/users/profile` — update name + avatar_url (min 2 karakter)
+- [x] `PATCH /api/users/change-password` — validasi currentPassword, hash baru, return 400 jika Google-only
 
 **FE Tasks:**
-- [ ] `src/api/users.ts` — `updateProfile()`, `changePassword()`
-- [ ] `src/composables/profile/useProfile.ts` — mutation update profile + change password
-- [ ] `src/views/profile/ProfileView.vue` — form edit nama, upload avatar, ganti password
-- [ ] Add route `/profile` → `ProfileView` (requiresAuth)
+- [x] `src/types/auth.ts` — tambah `avatar_url` ke `User`, `UpdateProfilePayload`, `ChangePasswordPayload`
+- [x] `src/api/users.ts` — `getProfile()`, `updateProfile()`, `changePassword()`
+- [x] `src/composables/user/useProfile.ts` — profile query + updateProfile mutation (sync authStore) + changePassword mutation
+- [x] `src/views/user/ProfileView.vue` — form edit nama + avatar preview + form ganti password
+- [x] Add route `/profile` → `ProfileView` (requiresAuth, under ProfileLayout)
 
 ---
 
-#### 5.3 Purchase History
+#### 5.3 Purchase History (Riwayat Pembelian)
 
 **Flow:**
 
 ```
-User navigates to /profile/orders  (requires auth)
+User navigates to /purchases  (requires auth)
           |
           ▼
     GET /api/orders/my-orders
-    Response: list orders dengan status (paid, pending, expired, failed)
+    Response: list orders diurutkan terbaru, populate course title + cover
           |
           ▼
     FE: tampilkan list order
-        - nama course, harga, tanggal, status badge
-        - order pending → tombol "Selesaikan Pembayaran" (buka snap dengan token yang sama)
+        - cover course, judul, tanggal, midtrans_order_id
+        - harga + status badge (Berhasil / Menunggu / Gagal / Kedaluwarsa)
 ```
 
 **Data yang dikembalikan per order:**
 ```
-midtrans_order_id  → string
+_id                → string
+courseId           → { _id, title, cover_url }  (populate)
 amount             → number
 status             → 'pending' | 'paid' | 'failed' | 'expired'
+midtrans_order_id  → string
 paidAt?            → Date
 createdAt          → Date
-course             → { _id, title, cover_url } (populate dari courseId)
 ```
-> Tidak butuh model baru — query dari `Order` collection yang sudah ada, populate `courseId`.
+> Tidak butuh model baru — query dari `Order` collection, populate `courseId`.
 
 **BE Tasks:**
-- [ ] `GET /api/orders/my-orders` — list semua order milik user, populate course title + cover
+- [x] `GET /api/orders/my-orders` — list semua order milik user, populate `courseId` (title + cover_url)
 
 **FE Tasks:**
-- [ ] `src/api/orders.ts` — `getMyOrders()`
-- [ ] `src/composables/profile/useMyOrders.ts` — `useQuery` untuk order history
-- [ ] `src/views/profile/OrderHistoryView.vue` — tabel/list order dengan status badge
-- [ ] Add route `/profile/orders` → `OrderHistoryView` (requiresAuth)
+- [x] `src/types/orders.ts` — `MyOrder`, `MyOrdersResponse`
+- [x] `src/api/orders.ts` — `getMyOrders()`
+- [x] `src/composables/orders/useOrders.ts` — `useQuery` + `orders` computed
+- [x] `src/views/user/PurchaseHistoryView.vue` — list order dengan status badge + formatRupiah
+- [x] Add route `/purchases` → `PurchaseHistoryView` (requiresAuth, under ProfileLayout)
+
+**Shared Layout:**
+- [x] `src/layouts/ProfileLayout.vue` — Navbar + sidebar desktop (sticky, active-class highlight) + pill nav mobile
+- [x] `router/routes/protected.ts` — ProfileLayout sebagai parent, 3 child routes di dalamnya
 
 ---
 
@@ -1593,8 +1659,16 @@ course             → { _id, title, cover_url } (populate dari courseId)
 | POST   | /api/checkout/webhook                 | **Primary** — Midtrans push: verify signature, update Order, upsert Enrollment       | -    |
 | GET    | /api/checkout/verify/:orderId         | **Fallback** — BE pulls status from Midtrans API, upsert Enrollment if settled       | JWT  |
 | GET    | /api/enrollments/check/:courseId      | Cek status enrollment user — dipolling FE setelah bayar hingga webhook mengisi DB    | JWT  |
+| GET    | /api/enrollments/my-courses           | List enrolled courses + completed_lessons per course (dari Progress collection)      | JWT  |
 
-> More endpoints will be added per phase.
+### User & Orders
+
+| Method | Endpoint                              | Description                                                                          | Auth |
+|--------|---------------------------------------|--------------------------------------------------------------------------------------|------|
+| GET    | /api/users/profile                    | Get current user profile                                                             | JWT  |
+| PATCH  | /api/users/profile                    | Update name + avatar_url                                                             | JWT  |
+| PATCH  | /api/users/change-password            | Change password — validates currentPassword; 400 if Google-only account             | JWT  |
+| GET    | /api/orders/my-orders                 | List all orders for current user, sorted newest first, populate course info          | JWT  |
 
 ---
 
