@@ -6,6 +6,8 @@ import quizRoutes from './quizRoutes';
 import taskRoutes from './taskRoutes';
 import checkoutRoutes from './checkoutRoutes';
 import enrollmentRoutes from './enrollmentRoutes';
+import userRoutes from './userRoutes';
+import orderRoutes from './orderRoutes';
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use('/quiz', quizRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/checkout', checkoutRoutes);
 router.use('/enrollments', enrollmentRoutes);
+router.use('/users', userRoutes);
+router.use('/orders', orderRoutes);
 
 export default router;

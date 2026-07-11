@@ -7,6 +7,7 @@ export interface IUser extends Document {
   email: string;
   password?: string;   // optional — Google-only users have no password
   googleId?: string;   // Google OAuth "sub" identifier; present only on Google-linked accounts
+  avatar_url?: string;
   role: 'student' | 'instructor' | 'admin';
 
   // Account verification status
@@ -45,6 +46,10 @@ const UserSchema = new Schema<IUser>(
       required: false,   // present only on Google-linked accounts
       unique: true,
       sparse: true,      // sparse index — allows multiple null values
+    },
+    avatar_url: {
+      type: String,
+      default: null,
     },
     role: {
       type: String,

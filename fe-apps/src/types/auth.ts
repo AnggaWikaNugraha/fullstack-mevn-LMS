@@ -53,7 +53,19 @@ export interface User {
   email: string;
   role: 'student' | 'instructor' | 'admin';
   isVerified: boolean;
+  avatar_url: string | null;
   createdAt: string;
+}
+
+export interface UpdateProfilePayload {
+  name: string;
+  avatar_url?: string;
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 export interface AuthTokens {
