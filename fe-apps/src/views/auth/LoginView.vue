@@ -3,7 +3,16 @@ import { Eye, EyeOff, Loader2 } from '@lucide/vue';
 import { useLogin } from '@/composables/auth/useLogin';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton.vue';
 
-const { email, password, errors, isPending, serverError, isGoogleOnlyAccount, showPassword, onSubmit } = useLogin();
+const {
+  email,
+  password,
+  errors,
+  isPending,
+  serverError,
+  isGoogleOnlyAccount,
+  showPassword,
+  onSubmit,
+} = useLogin();
 </script>
 
 <template>

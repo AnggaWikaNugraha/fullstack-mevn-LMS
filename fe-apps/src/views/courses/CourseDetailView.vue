@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useCourseDetail } from '@/composables/courses/useCourseDetail';
 import { useProgress } from '@/composables/courses/useProgress';
 import { useCheckout } from '@/composables/checkout/useCheckout';
+import { formatRupiah } from '@/utils/format';
 import VideoPlayer from '@/components/course/VideoPlayer.vue';
 import QuizPlayer from '@/components/course/QuizPlayer.vue';
 import TaskPlayer from '@/components/course/TaskPlayer.vue';
@@ -14,21 +14,28 @@ const route = useRoute();
 const auth = useAuthStore();
 const courseId = route.params.id as string;
 
-const { courseData, isLoading, isError, activeLessonId, activeLesson, nextLesson, selectLesson } =
-  useCourseDetail(courseId);
+const {
+  courseData,
+  isLoading,
+  isError,
+  activeLessonId,
+  activeLesson,
+  nextLesson,
+  selectLesson,
+  course,
+  isEnrolled,
+} = useCourseDetail(courseId);
 
-const { isPending, handleMarkComplete, handleVideoEnded } = useProgress(courseId, activeLesson);
-const { startCheckout, isPending: isCheckingOut } = useCheckout(courseId);
+const {
+  isPending,
+  handleMarkComplete,
+  handleVideoEnded,
+} = useProgress(courseId, activeLesson);
 
-const isEnrolled = computed(() => courseData.value?.course.isEnrolled ?? true);
-console.log("isEnrolled", isEnrolled?.value);
-
-const course = computed(() => courseData.value?.course ?? null);
-console.log('course', course?.value);
-
-
-const formatRupiah = (price: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(price);
+const {
+  startCheckout,
+  isPending: isCheckingOut,
+} = useCheckout(courseId);
 </script>
 
 <template>

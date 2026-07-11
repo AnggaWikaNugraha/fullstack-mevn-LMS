@@ -2,7 +2,17 @@
 import { Loader2 } from '@lucide/vue';
 import { useOtpVerification } from '@/composables/auth/useOtpVerification';
 
-const { email, otp, isPending, isResending, serverError, cooldown, canResend, onSubmit, onResend } = useOtpVerification();
+const {
+  email,
+  otp,
+  isPending,
+  isResending,
+  serverError,
+  cooldown,
+  canResend,
+  onSubmit,
+  onResend,
+} = useOtpVerification();
 </script>
 
 <template>

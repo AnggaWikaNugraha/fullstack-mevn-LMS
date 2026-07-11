@@ -2,7 +2,11 @@
 import BootcampCard from '@/components/course/BootcampCard.vue';
 import { useBootcamps } from '@/composables/bootcamps/useBootcamps';
 
-const { bootcamps, isLoading, isError } = useBootcamps();
+const {
+  bootcamps,
+  isLoading,
+  isError,
+} = useBootcamps();
 </script>
 
 <template>

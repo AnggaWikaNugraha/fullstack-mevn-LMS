@@ -3,7 +3,18 @@ import { Eye, EyeOff, Loader2 } from '@lucide/vue';
 import { useRegister } from '@/composables/auth/useRegister';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton.vue';
 
-const { name, email, password, confirmPassword, errors, isPending, serverError, showPassword, showConfirm, onSubmit } = useRegister();
+const {
+  name,
+  email,
+  password,
+  confirmPassword,
+  errors,
+  isPending,
+  serverError,
+  showPassword,
+  showConfirm,
+  onSubmit,
+} = useRegister();
 </script>
 
 <template>

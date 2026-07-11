@@ -10,7 +10,13 @@ const result = route.query.result as string;
 const courseId = (route.query.course_id as string) ?? '';
 const orderId = (route.query.order_id as string) ?? '';
 
-const { startPolling, manualVerify, isPolling, isTimedOut, isVerifying } = useEnrollment(courseId);
+const {
+  startPolling,
+  manualVerify,
+  isPolling,
+  isTimedOut,
+  isVerifying,
+} = useEnrollment(courseId);
 
 const config = computed(() => {
   if (result === 'success') {

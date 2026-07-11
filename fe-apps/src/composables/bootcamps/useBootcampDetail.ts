@@ -32,15 +32,6 @@ export function useBootcampDetail(id: string) {
     selectedBatchIndex.value = index;
   }
 
-  // Format harga ke Rupiah
-  function formatRupiah(price: number) {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0,
-    }).format(price);
-  }
-
   // Format tanggal sesi ke "Sabtu, 14 Jan 2025"
   function formatSessionDate(dateStr: string) {
     return new Intl.DateTimeFormat('id-ID', {
@@ -71,7 +62,6 @@ export function useBootcampDetail(id: string) {
     selectedSessions,
     selectedBatchIndex,
     setSelectedBatch,
-    formatRupiah,
     formatSessionDate,
     handleRegister,
     isRegisterDisabled,

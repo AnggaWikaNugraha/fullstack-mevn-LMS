@@ -5,7 +5,10 @@ import { Loader2 } from '@lucide/vue';
 import { useGoogleAuth } from '@/composables/auth/useGoogleAuth';
 
 const router = useRouter();
-const { handleCallback, serverError } = useGoogleAuth();
+const {
+  handleCallback,
+  serverError,
+} = useGoogleAuth();
 
 onMounted(() => {
   const params = new URLSearchParams(window.location.search);

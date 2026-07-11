@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
 import { useBootcampDetail } from '@/composables/bootcamps/useBootcampDetail';
+import { formatRupiah } from '@/utils/format';
 import { Users, MapPin, Calendar, Clock } from '@lucide/vue';
 
 const route = useRoute();
@@ -13,7 +14,6 @@ const {
   selectedSessions,
   selectedBatchIndex,
   setSelectedBatch,
-  formatRupiah,
   formatSessionDate,
   handleRegister,
   isRegisterDisabled,

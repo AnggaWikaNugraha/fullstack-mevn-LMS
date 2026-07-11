@@ -2,7 +2,14 @@
 import CourseCard from '@/components/course/CourseCard.vue';
 import { useCourses } from '@/composables/courses/useCourses';
 
-const { filteredCourses, topics, selectedTopic, selectTopic, isLoadingCourses, isLoadingTopics } = useCourses();
+const {
+  filteredCourses,
+  topics,
+  selectedTopic,
+  selectTopic,
+  isLoadingCourses,
+  isLoadingTopics,
+} = useCourses();
 </script>
 
 <template>

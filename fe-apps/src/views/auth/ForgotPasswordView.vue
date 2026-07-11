@@ -2,7 +2,13 @@
 import { Loader2 } from '@lucide/vue';
 import { useForgotPassword } from '@/composables/auth/useForgotPassword';
 
-const { email, errors, isPending, serverError, onSubmit } = useForgotPassword();
+const {
+  email,
+  errors,
+  isPending,
+  serverError,
+  onSubmit,
+} = useForgotPassword();
 </script>
 
 <template>

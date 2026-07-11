@@ -2,7 +2,17 @@
 import { Eye, EyeOff, Loader2 } from '@lucide/vue';
 import { useResetPassword } from '@/composables/auth/useResetPassword';
 
-const { newPassword, confirmPassword, errors, isPending, serverError, showPassword, showConfirm, isSuccess, onSubmit } = useResetPassword();
+const {
+  newPassword,
+  confirmPassword,
+  errors,
+  isPending,
+  serverError,
+  showPassword,
+  showConfirm,
+  isSuccess,
+  onSubmit,
+} = useResetPassword();
 </script>
 
 <template>

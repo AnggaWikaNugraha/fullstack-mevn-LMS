@@ -74,6 +74,9 @@ export function useCourseDetail(courseId: string) {
     activeLessonId.value = lessonId;
   }
 
+  const course = computed(() => data.value?.course ?? null);
+  const isEnrolled = computed(() => data.value?.course.isEnrolled ?? true);
+
   return {
     courseData: data,
     isLoading,
@@ -83,5 +86,7 @@ export function useCourseDetail(courseId: string) {
     activeLesson,
     nextLesson,
     selectLesson,
+    course,
+    isEnrolled,
   };
 }

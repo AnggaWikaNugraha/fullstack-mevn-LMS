@@ -1,17 +1,10 @@
 <script setup lang="ts">
 import type { BootcampPackage } from '@/types/bootcamps';
+import { formatRupiah } from '@/utils/format';
 
 const props = defineProps<{
   bootcamp: BootcampPackage & { starting_price?: number };
 }>();
-
-function formatRupiah(price: number) {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0,
-  }).format(price);
-}
 
 const statusConfig = {
   open: { label: 'Buka Pendaftaran', class: 'bg-green-100 text-green-700' },

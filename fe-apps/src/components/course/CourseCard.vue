@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { PlayCircle } from '@lucide/vue';
 import type { Course } from '@/types/courses';
+import { formatRupiah } from '@/utils/format';
 
 defineProps<{ course: Course }>();
 
@@ -15,9 +16,6 @@ const levelColor: Record<string, string> = {
   intermediate: 'bg-yellow-100 text-yellow-700',
   advanced: 'bg-red-100 text-red-700',
 };
-
-const formatRupiah = (price: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(price);
 </script>
 
 <template>
