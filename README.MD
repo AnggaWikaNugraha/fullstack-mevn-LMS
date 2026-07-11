@@ -1410,7 +1410,127 @@ isFree = false
 
 ### Phase 5 — User Profile & Purchase History
 
-> Coming Soon
+#### 5.1 My Courses (Kursus Saya)
+
+**Flow:**
+
+```
+User navigates to /my-courses  (requires auth)
+          |
+          ▼
+    GET /api/enrollments/my-courses
+    Response: list enrolled courses + progress per course
+          |
+          ▼
+    FE: tampilkan card per course
+        - cover, title, level
+        - progress bar (% selesai)
+        - tombol "Lanjut Belajar" → /courses/:id?lesson=<last_active_lesson>
+          |
+          └─→ course 0% → tombol "Mulai Belajar"
+          └─→ course 100% → badge "Selesai" + tombol "Ulangi"
+```
+
+**Data yang dikembalikan per course:**
+```
+enrolledAt    → Date
+course        → { _id, title, cover_url, level, topic_name, total_lessons }
+progress      → { completed_lessons, total_lessons, percentage }
+lastLesson    → _id lesson terakhir yang dikerjakan (dari Progress terbaru)
+```
+> Tidak butuh model baru — query join `Enrollment` + `Progress` + `Course`.
+
+**BE Tasks:**
+- [ ] `GET /api/enrollments/my-courses` — list enrolled courses + progress percentage per course
+
+**FE Tasks:**
+- [ ] `src/api/enrollments.ts` — tambah `getMyCourses()`
+- [ ] `src/composables/enrollments/useMyCourses.ts` — `useQuery` untuk enrolled courses
+- [ ] `src/views/profile/MyCoursesView.vue` — grid card enrolled courses + progress
+- [ ] Add route `/my-courses` → `MyCoursesView` (requiresAuth)
+- [ ] `AppNavbar.vue` — tambah link "Kursus Saya" untuk user yang login
+
+---
+
+#### 5.2 User Profile
+
+**Flow:**
+
+```
+User navigates to /profile  (requires auth)
+          |
+          ▼
+    GET /api/auth/me  (sudah ada)
+          |
+          ▼
+    FE: tampilkan info (nama, email, avatar, metode login)
+          |
+    User edit nama / upload foto
+          |
+          ▼
+    PATCH /api/users/profile  { name, avatar_url }
+          |
+    User ganti password (non-Google only)
+          |
+          ▼
+    PATCH /api/users/change-password  { currentPassword, newPassword }
+```
+
+**User Model Changes:**
+```
+avatar_url  → string, optional (URL foto profil — upload ke Cloudinary/S3)
+```
+> Field lain (`name`, `email`, `password`, `googleId`) sudah ada sejak Phase 1.
+
+**BE Tasks:**
+- [ ] Update `User` model — tambah field `avatar_url?: string`
+- [ ] `PATCH /api/users/profile` — update name + avatar_url
+- [ ] `PATCH /api/users/change-password` — validasi current password, update hash (skip jika Google-only user)
+
+**FE Tasks:**
+- [ ] `src/api/users.ts` — `updateProfile()`, `changePassword()`
+- [ ] `src/composables/profile/useProfile.ts` — mutation update profile + change password
+- [ ] `src/views/profile/ProfileView.vue` — form edit nama, upload avatar, ganti password
+- [ ] Add route `/profile` → `ProfileView` (requiresAuth)
+
+---
+
+#### 5.3 Purchase History
+
+**Flow:**
+
+```
+User navigates to /profile/orders  (requires auth)
+          |
+          ▼
+    GET /api/orders/my-orders
+    Response: list orders dengan status (paid, pending, expired, failed)
+          |
+          ▼
+    FE: tampilkan list order
+        - nama course, harga, tanggal, status badge
+        - order pending → tombol "Selesaikan Pembayaran" (buka snap dengan token yang sama)
+```
+
+**Data yang dikembalikan per order:**
+```
+midtrans_order_id  → string
+amount             → number
+status             → 'pending' | 'paid' | 'failed' | 'expired'
+paidAt?            → Date
+createdAt          → Date
+course             → { _id, title, cover_url } (populate dari courseId)
+```
+> Tidak butuh model baru — query dari `Order` collection yang sudah ada, populate `courseId`.
+
+**BE Tasks:**
+- [ ] `GET /api/orders/my-orders` — list semua order milik user, populate course title + cover
+
+**FE Tasks:**
+- [ ] `src/api/orders.ts` — `getMyOrders()`
+- [ ] `src/composables/profile/useMyOrders.ts` — `useQuery` untuk order history
+- [ ] `src/views/profile/OrderHistoryView.vue` — tabel/list order dengan status badge
+- [ ] Add route `/profile/orders` → `OrderHistoryView` (requiresAuth)
 
 ---
 
@@ -1522,6 +1642,7 @@ isFree = false
 │ email       │       │ refreshToken│
 │ password?   │       │ expiredAt   │
 │ googleId?   │       └─────────────┘
+│ avatar_url? │
 │ role        │
 │ isVerified  │       ┌─────────────┐
 │ otp?        │──1:N──│  Progress   │
@@ -1672,7 +1793,7 @@ isFree = false
 
 | Collection         | Indexes                                      | Notes                                      |
 |--------------------|----------------------------------------------|--------------------------------------------|
-| `users`            | `email` (unique)                             | `password` optional (Google-only users)    |
+| `users`            | `email` (unique)                             | `password` optional (Google-only users); `avatar_url` ditambah Phase 5 |
 | `sessions`         | `userId + deviceId` (unique), TTL on `refreshExpiredAt` | One active session per device   |
 | `courses`          | -                                            | `price = 0` when `isFree = true`           |
 | `modules`          | `courseId`                                   | Ordered with `order` field                 |
