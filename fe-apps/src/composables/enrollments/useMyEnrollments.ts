@@ -8,7 +8,7 @@ export function useMyEnrollments() {
     queryFn: () => getMyCourses().then((r) => r.data.data),
   });
 
-  const courses = computed(() => data.value?.courses ?? []);
+  const courses = computed(() => (data.value?.courses ?? []).filter((c) => c.course != null));
 
   return {
     courses,

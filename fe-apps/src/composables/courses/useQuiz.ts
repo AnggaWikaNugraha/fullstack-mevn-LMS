@@ -20,6 +20,9 @@ export function useQuiz(lessonId: string) {
     staleTime: 0,
   });
 
+  // Flag untuk menyembunyikan lastAttempt saat user mau ngulang
+  const isRetrying = ref(false);
+
   // Jawaban yang dipilih user: index soal → index pilihan
   const selectedAnswers = ref<(number | null)[]>([]);
 
@@ -45,10 +48,12 @@ export function useQuiz(lessonId: string) {
       ),
     onSuccess: (result) => {
       submitResult.value = result;
-      // Invalidate agar is_done di sidebar kurs ikut terupdate
+      isRetrying.value = false;
+      // Invalidate agar is_done di activeLesson dan sidebar kurs ikut terupdate
       queryClient.invalidateQueries({ queryKey: ['quiz-attempt', lessonId] });
       queryClient.invalidateQueries({ queryKey: ['course-progress'] });
       queryClient.invalidateQueries({ queryKey: ['courses'] });
+      queryClient.invalidateQueries({ queryKey: ['course'] });
     },
   });
 
@@ -57,6 +62,7 @@ export function useQuiz(lessonId: string) {
     loadingQuestions,
     lastAttempt,
     loadingAttempt,
+    isRetrying,
     selectedAnswers,
     allAnswered,
     submitResult,

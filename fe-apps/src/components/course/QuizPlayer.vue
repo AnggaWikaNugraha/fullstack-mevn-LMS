@@ -12,6 +12,7 @@ const {
   loadingQuestions,
   lastAttempt,
   loadingAttempt,
+  isRetrying,
   selectedAnswers,
   allAnswered,
   submitResult,
@@ -26,6 +27,7 @@ const displayResult = () => submitResult.value ?? lastAttempt.value ?? null;
 
 function handleRetry() {
   submitResult.value = null;
+  isRetrying.value = true;
   initAnswers();
 }
 </script>
@@ -38,8 +40,8 @@ function handleRetry() {
       <p class="text-gray-500 dark:text-gray-400">Memuat soal...</p>
     </div>
 
-    <!-- Tampilkan hasil setelah submit atau jika sudah pernah mengerjakan -->
-    <div v-else-if="submitResult || lastAttempt" class="space-y-4">
+    <!-- Tampilkan hasil setelah submit atau jika sudah pernah mengerjakan (dan tidak sedang retry) -->
+    <div v-else-if="(submitResult || lastAttempt) && !isRetrying" class="space-y-4">
       <div
         class="rounded-2xl p-8 text-center"
         :class="displayResult()?.passed

@@ -5,6 +5,8 @@ import Module from '../models/Module';
 import Chapter from '../models/Chapter';
 import Lesson from '../models/Lesson';
 import Progress from '../models/Progress';
+import QuizQuestion from '../models/QuizQuestion';
+import QuizAttempt from '../models/QuizAttempt';
 
 dotenv.config();
 
@@ -498,6 +500,15 @@ const allCourses: CourseSeed[] = [
                 duration: 0,
                 video_url: null,
                 description: 'Uji pemahaman kamu tentang sistem tipe TypeScript.',
+                is_locked: true,
+              },
+              {
+                title: 'Task: Anotasi Tipe pada Fungsi Sederhana',
+                type: 'task',
+                order: 5,
+                duration: 0,
+                video_url: null,
+                description: 'Buat minimal 3 fungsi TypeScript: satu menerima string & number, satu mengembalikan boolean, dan satu menggunakan array bertipe. Pastikan tidak ada penggunaan `any` dan semua parameter teranotasi.',
                 is_locked: true,
               },
             ],
@@ -1280,6 +1291,17 @@ async function seed() {
     await mongoose.connect(process.env.MONGODB_URI as string);
     console.log('Connected to MongoDB');
 
+    // Hapus SEMUA data agar tidak ada orphan dari seed run sebelumnya
+    await Promise.all([
+      Module.deleteMany({}),
+      Chapter.deleteMany({}),
+      Lesson.deleteMany({}),
+      QuizQuestion.deleteMany({}),
+      QuizAttempt.deleteMany({}),
+      Progress.deleteMany({}),
+    ]);
+    console.log('Semua data lama (module/chapter/lesson/quiz) berhasil dihapus.');
+
     for (const courseData of allCourses) {
       const course = await Course.findOne({ title: courseData.courseTitle });
       if (!course) {
@@ -1288,19 +1310,6 @@ async function seed() {
       }
 
       const courseId = course._id;
-
-      // Hapus data lesson lama agar seeder idempotent
-      const existingModules = await Module.find({ courseId });
-      const moduleIds = existingModules.map((m) => m._id);
-      const existingChapters = await Chapter.find({ moduleId: { $in: moduleIds } });
-      const chapterIds = existingChapters.map((c) => c._id);
-
-      await Promise.all([
-        Progress.deleteMany({ courseId }),
-        Lesson.deleteMany({ chapterId: { $in: chapterIds } }),
-        Chapter.deleteMany({ moduleId: { $in: moduleIds } }),
-        Module.deleteMany({ courseId }),
-      ]);
 
       let totalLessons = 0;
       let totalDuration = 0;

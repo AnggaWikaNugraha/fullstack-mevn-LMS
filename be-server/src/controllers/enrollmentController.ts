@@ -34,8 +34,11 @@ export const getMyCourses = async (req: AuthRequest, res: Response, next: NextFu
       .sort({ enrolledAt: -1 });
 
     // Hitung completed lessons per course dari tabel Progress
+    // Filter enrollment orphan (courseId null setelah populate, misalnya course sudah di-reseed)
+    const validEnrollments = enrollments.filter((e) => e.courseId != null);
+
     const courses = await Promise.all(
-      enrollments.map(async (e) => {
+      validEnrollments.map(async (e) => {
         const completedLessons = await Progress.countDocuments({
           userId: req.userId,
           courseId: e.courseId,

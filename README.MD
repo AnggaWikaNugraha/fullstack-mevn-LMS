@@ -729,9 +729,9 @@ User inputs new password + confirm password → submit
 
 ### Phase 2 — Courses & Bootcamp
 
-#### 2.1 Course List (Landing Page)
+#### 2.1 Course List
 
-![course](docs/course.png)
+![course](docs/course%20list.png)
 
 **Flow:**
 
@@ -970,7 +970,7 @@ completedAt   → Date
 
 #### 2.3 Bootcamp List & Detail
 
-![Bootcamps](docs/course.png)
+![Bootcamps](docs/bootcamp%20list.png)
 
 **Bootcamp List Flow:**
 
@@ -1096,6 +1096,8 @@ session_end_time   → string (e.g. "12:00")
 
 #### 2.4 Company Profile Section (Static)
 
+![Landing Page](docs/course.png) (Landing Page)
+
 **No BE needed — FE only.**
 
 ```
@@ -1170,6 +1172,8 @@ BootcampSession — no new fields needed; channel name = session _id
 > Assumptions: Task = submit URL + optional note. Quiz retry = unlimited. `passing_score` stored on Lesson (default 70). Task auto-approved on submit.
 
 #### 3.1 Quiz
+
+![quiz](docs/quiz.png)
 
 **Quiz Flow:**
 
@@ -1260,6 +1264,8 @@ passing_score → number, default: 70              (new field)
 ---
 
 #### 3.2 Task
+
+![quiz](docs/task.png)
 
 **Task Flow:**
 
@@ -1496,6 +1502,8 @@ POST /api/courses/update-progress  (lesson di course isFree: true)
 
 #### 5.1 My Courses (Course Saya)
 
+![my_course](docs/my%20course.png)
+
 **Flow:**
 
 ```
@@ -1536,6 +1544,8 @@ course            → { _id, title, cover_url, level, topic_name, total_lessons,
 ---
 
 #### 5.2 User Profile
+
+![profile](docs/profile.png)
 
 **Flow:**
 
@@ -1582,6 +1592,8 @@ avatar_url  → string | null, optional (URL foto profil)
 ---
 
 #### 5.3 Purchase History (Riwayat Pembelian)
+
+![riwayat payments](docs/riwayat%20pembelian.png)
 
 **Flow:**
 

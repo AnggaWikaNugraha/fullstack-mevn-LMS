@@ -121,28 +121,39 @@ const {
               </p>
             </div>
 
-            <!-- Tombol aksi — hanya untuk user yang sudah login dan lesson video -->
+            <!-- Tombol aksi — hanya untuk user yang sudah login -->
             <div
-              v-if="auth.isAuthenticated && activeLesson && activeLesson.type === 'video'"
+              v-if="auth.isAuthenticated && activeLesson"
               class="flex items-center gap-2 sm:shrink-0"
             >
-              <!-- Tombol tandai selesai hanya untuk video -->
-              <button
-                v-if="!activeLesson.is_done"
-                class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
-                :disabled="isPending || activeLesson.is_locked"
-                @click="handleMarkComplete"
-              >
-                <svg v-if="isPending" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                {{ isPending ? 'Menyimpan...' : 'Tandai Selesai' }}
-              </button>
+              <!-- Tandai selesai + badge selesai — hanya untuk video -->
+              <template v-if="activeLesson.type === 'video'">
+                <button
+                  v-if="!activeLesson.is_done"
+                  class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+                  :disabled="isPending || activeLesson.is_locked"
+                  @click="handleMarkComplete"
+                >
+                  <svg v-if="isPending" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {{ isPending ? 'Menyimpan...' : 'Tandai Selesai' }}
+                </button>
+                <span
+                  v-else
+                  class="flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 text-sm font-medium rounded-lg border border-green-200"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                  </svg>
+                  Selesai
+                </span>
+              </template>
 
-              <!-- Badge selesai -->
+              <!-- Badge selesai untuk quiz dan task -->
               <span
-                v-else
+                v-else-if="activeLesson.is_done"
                 class="flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 text-sm font-medium rounded-lg border border-green-200"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -151,9 +162,9 @@ const {
                 Selesai
               </span>
 
-              <!-- Tombol lesson selanjutnya -->
+              <!-- Tombol lesson selanjutnya — tampil untuk semua tipe -->
               <button
-                v-if="nextLesson && !nextLesson.is_locked"
+                v-if="nextLesson && activeLesson.is_done"
                 class="px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
                 @click="selectLesson(nextLesson._id)"
               >
