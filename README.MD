@@ -29,6 +29,19 @@ src/
 │   ├── enrollments.ts         # Enrollment check + my-courses API calls
 │   ├── users.ts               # User profile + change-password API calls
 │   └── orders.ts              # Purchase history API calls
+├── api/
+│   ├── client.ts              # Axios instance + interceptors (silent refresh)
+│   ├── auth.ts
+│   ├── courses.ts
+│   ├── bootcamps.ts
+│   ├── quiz.ts
+│   ├── tasks.ts
+│   ├── checkout.ts
+│   ├── enrollments.ts
+│   ├── users.ts
+│   ├── orders.ts
+│   └── admin/
+│       └── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -54,18 +67,25 @@ src/
 │   │   └── useMyEnrollments.ts  # useQuery for my-courses with progress
 │   ├── orders/
 │   │   └── useOrders.ts         # useQuery for purchase history
-│   └── user/
-│       └── useProfile.ts        # getProfile query + updateProfile + changePassword mutations
+│   ├── user/
+│   │   └── useProfile.ts        # getProfile query + updateProfile + changePassword mutations
+│   └── admin/                   # Admin composables (one file per concern)
+│       ├── useCourseList.ts     # course list query + togglePublish + confirmDelete
+│       ├── useCourseForm.ts     # create/edit course form mutations
+│       ├── useCourseContent.ts  # course detail query + invalidate helper
+│       └── useCourseEditor.ts   # expand state + all module/chapter/lesson CRUD mutations
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
-│   └── ProfileLayout.vue      # Navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) + RouterView
+│   ├── ProfileLayout.vue      # Navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) + RouterView
+│   └── AdminLayout.vue        # Navbar + sidebar admin (Dashboard, Courses, Quiz, Users, …) + RouterView
 ├── router/
-│   ├── index.ts               # Vue Router + navigation guard
+│   ├── index.ts               # Vue Router + navigation guard (requiresAuth + requiresAdmin)
 │   └── routes/
 │       ├── auth.ts            # Auth routes (guest-only)
 │       ├── public.ts          # Public routes under DefaultLayout
-│       └── protected.ts       # Protected routes under ProfileLayout (requiresAuth)
+│       ├── protected.ts       # Protected routes under ProfileLayout (requiresAuth)
+│       └── admin.ts           # Admin routes under AdminLayout (requiresAdmin)
 ├── stores/
 │   ├── authStore.ts           # Pinia — access token (memory), user, refresh token (localStorage)
 │   └── errorStore.ts          # Pinia — global error modal state
@@ -77,7 +97,8 @@ src/
 │   ├── checkout.ts            # Order, CreateOrderResponse, EnrollmentStatus, VerifyPaymentResponse
 │   ├── quiz.ts                # QuizQuestion, QuizAttemptResult, TaskSubmission
 │   ├── enrollments.ts         # MyCourse, MyCoursesResponse
-│   └── orders.ts              # MyOrder, MyOrdersResponse
+│   ├── orders.ts              # MyOrder, MyOrdersResponse
+│   └── router.d.ts            # Extend RouteMeta: requiresAuth, requiresAdmin, guestOnly
 ├── utils/
 │   └── format.ts              # formatRupiah, formatDate, progressPercent
 ├── views/
@@ -93,13 +114,19 @@ src/
 │   │   ├── MyCoursesView.vue        # Grid kursus yang sudah dibeli + progress bar
 │   │   ├── ProfileView.vue          # Edit nama, avatar URL, ganti password
 │   │   └── PurchaseHistoryView.vue  # List riwayat order + status badge
-│   └── auth/
-│       ├── LoginView.vue
-│       ├── RegisterView.vue
-│       ├── OtpVerificationView.vue
-│       ├── ForgotPasswordView.vue
-│       ├── ResetPasswordView.vue
-│       └── GoogleCallbackView.vue
+│   ├── auth/
+│   │   ├── LoginView.vue
+│   │   ├── RegisterView.vue
+│   │   ├── OtpVerificationView.vue
+│   │   ├── ForgotPasswordView.vue
+│   │   ├── ResetPasswordView.vue
+│   │   └── GoogleCallbackView.vue
+│   └── admin/
+│       ├── DashboardView.vue        # Placeholder
+│       └── courses/
+│           ├── CourseListView.vue   # Tabel course + status badge + toggle publish + edit/hapus
+│           ├── CourseFormView.vue   # Form create/edit course (title, desc, cover, topic, level, price)
+│           └── CourseContentView.vue # Tree outline editor: modul→bab→lesson; expand/collapse; video preview modal
 └── components/
     ├── ui/
     │   ├── GlobalErrorModal.vue
@@ -136,16 +163,19 @@ src/
 │   ├── quizController.ts        # Quiz questions, submit, my-attempt
 │   ├── taskController.ts        # Task submit, my-submission
 │   ├── userController.ts        # getProfile, updateProfile, changePassword
-│   └── orderController.ts       # getMyOrders
+│   ├── orderController.ts       # getMyOrders
+│   └── admin/
+│       └── courseAdminController.ts  # Admin CRUD: course + module + chapter + lesson + cascade delete
 ├── middlewares/
-│   ├── authMiddleware.ts  # protect + optionalProtect
+│   ├── authMiddleware.ts    # protect + optionalProtect
+│   ├── adminMiddleware.ts   # adminOnly — cek role === 'admin'
 │   ├── errorHandler.ts
 │   ├── rateLimiter.ts
 │   └── requestLogger.ts
 ├── models/
 │   ├── User.ts             # name, email, password?, googleId?, avatar_url?, role, isVerified, otp
 │   ├── Session.ts          # Device session (TTL index)
-│   ├── Course.ts           # title, cover_url, topic, level, isFree, price, stats
+│   ├── Course.ts           # title, cover_url, topic, level, isFree, price, status (draft|published)
 │   ├── Module.ts
 │   ├── Chapter.ts
 │   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
@@ -168,13 +198,16 @@ src/
 │   ├── checkoutRoutes.ts
 │   ├── enrollmentRoutes.ts
 │   ├── userRoutes.ts        # GET/PATCH /users/profile, PATCH /users/change-password
-│   └── orderRoutes.ts       # GET /orders/my-orders
+│   ├── orderRoutes.ts       # GET /orders/my-orders
+│   └── admin/
+│       └── courseAdminRoutes.ts  # All /admin/courses/* routes (protect + adminOnly middleware)
 ├── seeds/
-│   ├── courseSeeder.ts      # npm run seed:courses
+│   ├── courseSeeder.ts      # npm run seed:courses  (semua course status: published)
 │   ├── lessonSeeder.ts      # npm run seed:lessons
 │   ├── bootcampSeeder.ts    # npm run seed:bootcamps
-│   ├── allLessonsSeeder.ts  # npm run seed:all-lessons (all 6 courses)
-│   └── allQuizSeeder.ts     # npm run seed:all-quiz (5 questions × 15 quiz lessons)
+│   ├── allLessonsSeeder.ts  # npm run seed:all-lessons (all 6 courses; hard-clears collections first)
+│   ├── allQuizSeeder.ts     # npm run seed:all-quiz (5 questions × 15 quiz lessons)
+│   └── adminSeeder.ts       # npm run seed:admin  (admin@gmail.com / 123123123)
 ├── templates/
 │   └── otpEmail.ts
 ├── validations/
@@ -230,7 +263,9 @@ src/
 | Course Saya (My Courses)                          | ✅ Done         |
 | User Profile (edit nama, avatar, password)        | ✅ Done         |
 | Purchase History (riwayat pembelian)              | ✅ Done         |
-| Admin — Course & Quiz Management                  | 🔄 Coming Soon  |
+| Admin — Layout, Auth Guard & Admin Seed           | ✅ Done         |
+| Admin — Course Management (CRUD + Content Editor) | ✅ Done         |
+| Admin — Quiz Management                           | 🔄 Coming Soon  |
 | Admin — User & Bootcamp Management                | 🔄 Coming Soon  |
 | Admin — Order & Task Review                       | 🔄 Coming Soon  |
 | Admin — Dashboard Stats & Revenue Report          | 🔄 Coming Soon  |
@@ -1732,34 +1767,37 @@ passing_score → number (untuk tipe quiz)
 ```
 
 **BE Tasks:**
-- [ ] `adminMiddleware.ts` — cek `req.userId` punya `role: 'admin'`
-- [ ] Update `Course` model — tambah field `status: 'draft' | 'published'` (default `'draft'`)
-- [ ] Update `GET /api/courses` (public) — filter hanya `status: 'published'`
-- [ ] `GET /api/admin/courses` — list semua course (draft + published) + total_lessons + total_students
-- [ ] `GET /api/admin/courses/:id` — detail course lengkap dengan modules → chapters → lessons (untuk pre-fill form edit + `CourseContentView`)
-- [ ] `POST /api/admin/courses` — create course (default status: draft)
-- [ ] `PATCH /api/admin/courses/:id` — update course termasuk publish/unpublish
-- [ ] `DELETE /api/admin/courses/:id` — delete course + cascade: Module, Chapter, Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by courseId)
-- [ ] `POST /api/admin/courses/:id/modules` — tambah module
-- [ ] `PATCH /api/admin/modules/:id` — edit module
-- [ ] `DELETE /api/admin/modules/:id` — delete module + cascade: Chapter, Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by moduleId/related lessons)
-- [ ] `POST /api/admin/modules/:id/chapters` — tambah chapter
-- [ ] `PATCH /api/admin/chapters/:id` — edit chapter
-- [ ] `DELETE /api/admin/chapters/:id` — delete chapter + cascade: Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by chapterId/related lessons)
-- [ ] `POST /api/admin/chapters/:id/lessons` — tambah lesson
-- [ ] `PATCH /api/admin/lessons/:id` — edit lesson
-- [ ] `DELETE /api/admin/lessons/:id` — delete lesson + cascade: QuizQuestion, QuizAttempt, Progress, TaskSubmission (by lessonId)
+- [x] `adminMiddleware.ts` — cek `req.userId` punya `role: 'admin'`
+- [x] Update `Course` model — tambah field `status: 'draft' | 'published'` (default `'draft'`)
+- [x] Update `GET /api/courses` (public) — filter hanya `status: 'published'`
+- [x] `GET /api/admin/courses` — list semua course (draft + published) + total_lessons + total_students
+- [x] `GET /api/admin/courses/:id` — detail course lengkap dengan modules → chapters → lessons (untuk pre-fill form edit + `CourseContentView`)
+- [x] `POST /api/admin/courses` — create course (default status: draft)
+- [x] `PATCH /api/admin/courses/:id` — update course termasuk publish/unpublish
+- [x] `DELETE /api/admin/courses/:id` — delete course + cascade: Module, Chapter, Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by courseId)
+- [x] `POST /api/admin/courses/:id/modules` — tambah module
+- [x] `PATCH /api/admin/modules/:id` — edit module
+- [x] `DELETE /api/admin/modules/:id` — delete module + cascade: Chapter, Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by moduleId/related lessons)
+- [x] `POST /api/admin/modules/:id/chapters` — tambah chapter
+- [x] `PATCH /api/admin/chapters/:id` — edit chapter
+- [x] `DELETE /api/admin/chapters/:id` — delete chapter + cascade: Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by chapterId/related lessons)
+- [x] `POST /api/admin/chapters/:id/lessons` — tambah lesson
+- [x] `PATCH /api/admin/lessons/:id` — edit lesson
+- [x] `DELETE /api/admin/lessons/:id` — delete lesson + cascade: QuizQuestion, QuizAttempt, Progress, TaskSubmission (by lessonId)
 - [ ] `GET /api/admin/topics` — list semua topic
 - [ ] `POST /api/admin/topics` — tambah topic baru (`topic` slug + `topic_name`)
 - [ ] `PATCH /api/admin/topics/:topic` — rename topic
 - [ ] `DELETE /api/admin/topics/:topic` — hapus topic (cegah jika masih ada course yang pakai)
 
 **FE Tasks:**
-- [ ] `src/api/admin/courses.ts` — CRUD course + module + chapter + lesson + publish toggle
-- [ ] `src/composables/admin/useCourseAdmin.ts`
-- [ ] `src/views/admin/courses/CourseListView.vue` — tabel course + status badge (Draft/Published) + toggle publish + tombol edit/hapus
-- [ ] `src/views/admin/courses/CourseFormView.vue` — form create/edit course + pilih topic dari dropdown; gunakan `GET /api/admin/courses/:id` untuk pre-fill saat edit
-- [ ] `src/views/admin/courses/CourseContentView.vue` — nested editor: module → chapter → lesson; lesson bertipe `quiz` tampilkan tombol "Kelola Soal →" yang navigasi ke `/admin/quiz/:lessonId` (link ke 6.3)
+- [x] `src/api/admin/courses.ts` — TypeScript interfaces (AdminCourse, AdminLesson, dll.) + CRUD course + module + chapter + lesson + publish toggle
+- [x] `src/composables/admin/useCourseList.ts` — course list query + togglePublish mutation + confirmDelete
+- [x] `src/composables/admin/useCourseForm.ts` — create/edit course mutations + pre-fill query
+- [x] `src/composables/admin/useCourseContent.ts` — course detail query + invalidate helper
+- [x] `src/composables/admin/useCourseEditor.ts` — expand state (auto-expand on load, collapse/expand all) + semua CRUD mutations module/chapter/lesson
+- [x] `src/views/admin/courses/CourseListView.vue` — tabel course + status badge (Draft/Published) + toggle publish + tombol Konten/Edit/Hapus
+- [x] `src/views/admin/courses/CourseFormView.vue` — form create/edit course; pre-fill otomatis saat edit via `GET /api/admin/courses/:id`
+- [x] `src/views/admin/courses/CourseContentView.vue` — tree outline editor (MS Word style): modul → bab → lesson dengan nomor hierarki (1, 1.1, 1.1.1); ikon per tipe (video/quiz/task); inline edit on hover; klik ikon play → modal preview video (YouTube embed / HTML5); tombol collapse/expand per modul + global Buka Semua / Tutup Semua
 - [ ] `src/views/admin/topics/TopicListView.vue` — CRUD topic
 
 ---
