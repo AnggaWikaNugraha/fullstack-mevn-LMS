@@ -172,9 +172,18 @@ export function useCourseEditor(courseId: string) {
     if (confirm(`Hapus lesson "${l.title}"?`)) removeLesson(l._id);
   }
 
+  // Expand soal quiz per lesson
+  const expandedQuizzes = ref<Set<string>>(new Set());
+  const toggleQuiz = (id: string) => {
+    const s = new Set(expandedQuizzes.value);
+    s.has(id) ? s.delete(id) : s.add(id);
+    expandedQuizzes.value = s;
+  };
+
   return {
     course, isLoading,
     expandedModules, expandedChapters, toggleModule, toggleChapter,
+    expandedQuizzes, toggleQuiz,
     expandAll, collapseAll,
     collapseModuleChapters, expandModuleChapters, allChaptersExpanded,
     newModuleTitle, newChapterTitle, newLesson,

@@ -41,7 +41,8 @@ src/
 │   ├── users.ts
 │   ├── orders.ts
 │   └── admin/
-│       └── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
+│       ├── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
+│       └── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -73,7 +74,8 @@ src/
 │       ├── useCourseList.ts     # course list query + togglePublish + confirmDelete
 │       ├── useCourseForm.ts     # create/edit course form mutations
 │       ├── useCourseContent.ts  # course detail query + invalidate helper
-│       └── useCourseEditor.ts   # expand state + all module/chapter/lesson CRUD mutations
+│       ├── useCourseEditor.ts   # expand state + all module/chapter/lesson CRUD mutations + expandedQuizzes/toggleQuiz
+│       └── useQuizEditor.ts     # quiz question CRUD mutations per lesson (add / edit / delete + showAddForm state)
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
@@ -126,7 +128,7 @@ src/
 │       └── courses/
 │           ├── CourseListView.vue   # Tabel course + status badge + toggle publish + edit/hapus
 │           ├── CourseFormView.vue   # Form create/edit course (title, desc, cover, topic, level, price)
-│           └── CourseContentView.vue # Tree outline editor: modul→bab→lesson; expand/collapse; video preview modal
+│           └── CourseContentView.vue # Tree outline editor (MS Word style): modul→bab→lesson; expand/collapse per level; klik ikon quiz → inline QuizEditorPanel; klik ikon video → modal preview YouTube
 └── components/
     ├── ui/
     │   ├── GlobalErrorModal.vue
@@ -138,13 +140,15 @@ src/
     │   ├── CoursesSection.vue
     │   ├── BootcampSection.vue
     │   └── BenefitsSection.vue
-    └── course/
-        ├── CourseCard.vue
-        ├── BootcampCard.vue
-        ├── CourseSidebar.vue
-        ├── VideoPlayer.vue
-        ├── QuizPlayer.vue
-        └── TaskPlayer.vue
+    ├── course/
+    │   ├── CourseCard.vue
+    │   ├── BootcampCard.vue
+    │   ├── CourseSidebar.vue
+    │   ├── VideoPlayer.vue
+    │   ├── QuizPlayer.vue
+    │   └── TaskPlayer.vue
+    └── admin/
+        └── QuizEditorPanel.vue  # Inline quiz CRUD panel: daftar soal + edit/hapus + form tambah soal (toggle)
 ```
 
 ### Backend (`be-server/src/`)
@@ -165,7 +169,8 @@ src/
 │   ├── userController.ts        # getProfile, updateProfile, changePassword
 │   ├── orderController.ts       # getMyOrders
 │   └── admin/
-│       └── courseAdminController.ts  # Admin CRUD: course + module + chapter + lesson + cascade delete
+│       ├── courseAdminController.ts  # Admin CRUD: course + module + chapter + lesson + cascade delete
+│       └── quizAdminController.ts    # Admin quiz CRUD: get/create/update/delete questions (dengan correct_index)
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
 │   ├── adminMiddleware.ts   # adminOnly — cek role === 'admin'
@@ -200,7 +205,8 @@ src/
 │   ├── userRoutes.ts        # GET/PATCH /users/profile, PATCH /users/change-password
 │   ├── orderRoutes.ts       # GET /orders/my-orders
 │   └── admin/
-│       └── courseAdminRoutes.ts  # All /admin/courses/* routes (protect + adminOnly middleware)
+│       ├── courseAdminRoutes.ts  # All /admin/courses/* routes (protect + adminOnly middleware)
+│       └── quizAdminRoutes.ts    # All /admin/quiz/* routes (protect + adminOnly middleware)
 ├── seeds/
 │   ├── courseSeeder.ts      # npm run seed:courses  (semua course status: published)
 │   ├── lessonSeeder.ts      # npm run seed:lessons
@@ -265,7 +271,7 @@ src/
 | Purchase History (riwayat pembelian)              | ✅ Done         |
 | Admin — Layout, Auth Guard & Admin Seed           | ✅ Done         |
 | Admin — Course Management (CRUD + Content Editor) | ✅ Done         |
-| Admin — Quiz Management                           | 🔄 Coming Soon  |
+| Admin — Quiz Management                           | ✅ Done         |
 | Admin — User & Bootcamp Management                | 🔄 Coming Soon  |
 | Admin — Order & Task Review                       | 🔄 Coming Soon  |
 | Admin — Dashboard Stats & Revenue Report          | 🔄 Coming Soon  |
@@ -1797,7 +1803,7 @@ passing_score → number (untuk tipe quiz)
 - [x] `src/composables/admin/useCourseEditor.ts` — expand state (auto-expand on load, collapse/expand all) + semua CRUD mutations module/chapter/lesson
 - [x] `src/views/admin/courses/CourseListView.vue` — tabel course + status badge (Draft/Published) + toggle publish + tombol Konten/Edit/Hapus
 - [x] `src/views/admin/courses/CourseFormView.vue` — form create/edit course; pre-fill otomatis saat edit via `GET /api/admin/courses/:id`
-- [x] `src/views/admin/courses/CourseContentView.vue` — tree outline editor (MS Word style): modul → bab → lesson dengan nomor hierarki (1, 1.1, 1.1.1); ikon per tipe (video/quiz/task); inline edit on hover; klik ikon play → modal preview video (YouTube embed / HTML5); tombol collapse/expand per modul + global Buka Semua / Tutup Semua
+- [x] `src/views/admin/courses/CourseContentView.vue` — tree outline editor (MS Word style): modul → bab → lesson dengan nomor hierarki (1, 1.1, 1.1.1); ikon per tipe (video/quiz/task); inline edit on hover; klik ikon PlayCircle → modal preview video (YouTube embed); klik ikon CircleHelp → inline QuizEditorPanel; tombol collapse/expand per modul + global Buka Semua / Tutup Semua
 - [ ] `src/views/admin/topics/TopicListView.vue` — CRUD topic
 
 ---
@@ -1807,51 +1813,44 @@ passing_score → number (untuk tipe quiz)
 **Flow:**
 
 ```
-Admin navigates to /admin/quiz/:lessonId
+Admin navigates to /admin/courses/:id/content
+          |
+          ▼
+    CourseContentView: tree outline modul → bab → lesson
+          |
+          ▼
+    Admin klik ikon CircleHelp (quiz) di baris lesson
+          |
+          ▼
+    Panel QuizEditorPanel muncul di bawah baris lesson (inline)
           |
           ▼
     GET /api/admin/quiz/:lessonId/questions  (dengan correct_index — admin only)
           |
           ▼
-    Admin tambah / edit / hapus soal
+    Admin tambah / edit / hapus soal — CRUD inline tanpa pindah halaman
           |
           ▼
-    POST   /api/admin/quiz/:lessonId/questions   { question, options[], correct_index, order }
+    POST   /api/admin/quiz/:lessonId/questions   { question, options[], correct_index }
     PATCH  /api/admin/quiz/questions/:questionId
     DELETE /api/admin/quiz/questions/:questionId
 ```
 
-**Format Input — Markdown**
-
-Pertanyaan dan opsi jawaban ditulis dalam **Markdown** — admin bisa pakai bold, italic, kode inline, dan blok kode. Live preview ditampilkan di sebelah editor. Di `QuizPlayer` (FE student), teks di-render ke HTML via `marked` / `markdown-it`.
-
-```
-Contoh pertanyaan:
-"Apa output dari kode berikut?\n\n```js\nconsole.log(typeof null)\n```"
-
-Opsi:
-A. "object"
-B. "null"
-C. "undefined"
-D. "string"
-```
-
-**Validasi (non-empty):**
-- BE: `question.trim().length > 0` + semua `options[i].trim().length > 0` — return 400 jika ada yang kosong
-- FE (Zod): `z.string().trim().min(1)` untuk question dan setiap opsi
-- `correct_index` harus 0–3
+> Quiz management dilakukan **inline** di dalam `CourseContentView`, bukan di halaman terpisah. Klik ikon quiz atau tombol chevron di hover area untuk membuka panel soal.
 
 **BE Tasks:**
-- [ ] `GET /api/admin/quiz/:lessonId/questions` — return questions **dengan** `correct_index`
-- [ ] `POST /api/admin/quiz/:lessonId/questions` — tambah soal (validasi trim non-empty)
-- [ ] `PATCH /api/admin/quiz/questions/:questionId` — edit soal
-- [ ] `DELETE /api/admin/quiz/questions/:questionId` — hapus soal
+- [x] `GET /api/admin/quiz/:lessonId/questions` — return questions **dengan** `correct_index`
+- [x] `POST /api/admin/quiz/:lessonId/questions` — tambah soal
+- [x] `PATCH /api/admin/quiz/questions/:questionId` — edit soal
+- [x] `DELETE /api/admin/quiz/questions/:questionId` — hapus soal
+- [x] `quizAdminRoutes.ts` — semua route dilindungi `protect + adminOnly`
+- [x] Daftarkan di `routes/index.ts` → `router.use('/admin/quiz', quizAdminRoutes)`
 
 **FE Tasks:**
-- [ ] Install `marked` — render Markdown ke HTML di QuizPlayer + admin preview
-- [ ] `src/api/admin/quiz.ts`
-- [ ] `src/views/admin/quiz/QuizEditorView.vue` — textarea Markdown + live preview + pilih jawaban benar + Zod validation
-- [ ] Update `QuizPlayer.vue` — render `question` dan `options` sebagai HTML (via `marked`)
+- [x] `src/api/admin/quiz.ts` — `AdminQuizQuestion` interface + CRUD API calls
+- [x] `src/composables/admin/useQuizEditor.ts` — `useQuery` soal + `useMutation` add/save/delete + `showAddForm` state
+- [x] `src/components/admin/QuizEditorPanel.vue` — panel inline: daftar soal (numbered, jawaban benar highlight hijau) + form edit + form tambah (toggle)
+- [x] `CourseContentView.vue` — klik ikon CircleHelp atau chevron ungu di hover area → toggle `expandedQuizzes`; `QuizEditorPanel` muncul di bawah baris lesson ketika expanded
 
 ---
 

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { type Component, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { ChevronDown, ChevronRight, ChevronsUpDown, Pencil, Trash2, ExternalLink, PlayCircle, CircleHelp, ClipboardList, Plus, X } from '@lucide/vue';
+import { ChevronDown, ChevronRight, ChevronsUpDown, Pencil, Trash2, PlayCircle, CircleHelp, ClipboardList, Plus, X } from '@lucide/vue';
 import { useCourseEditor } from '@/composables/admin/useCourseEditor';
+import QuizEditorPanel from '@/components/admin/QuizEditorPanel.vue';
 
 const route = useRoute();
 const courseId = route.params.id as string;
@@ -10,6 +11,7 @@ const courseId = route.params.id as string;
 const {
   course, isLoading,
   expandedModules, expandedChapters, toggleModule, toggleChapter,
+  expandedQuizzes, toggleQuiz,
   expandAll, collapseAll,
   collapseModuleChapters, expandModuleChapters, allChaptersExpanded,
   newModuleTitle, newChapterTitle, newLesson,
@@ -165,53 +167,72 @@ function isYoutube(url: string): boolean {
                 class="ml-8 pl-4 border-l-2 border-gray-100 pb-1 space-y-0.5">
 
                 <!-- Baris Lesson -->
-                <div v-for="(lesson, li) in ch.lessons" :key="lesson._id"
-                  class="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+                <template v-for="(lesson, li) in ch.lessons" :key="lesson._id">
+                  <div class="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
 
-                  <button
-                    v-if="lesson.type === 'video' && lesson.video_url"
-                    class="shrink-0 hover:scale-110 transition-transform"
-                    @click="previewVideoUrl = lesson.video_url"
-                  >
-                    <component :is="typeIcon[lesson.type]" class="w-3.5 h-3.5" :class="typeColor[lesson.type]" />
-                  </button>
-                  <component v-else :is="typeIcon[lesson.type]"
-                    class="shrink-0 w-3.5 h-3.5" :class="typeColor[lesson.type]" />
+                    <!-- Ikon: video → putar preview, quiz → toggle soal -->
+                    <button
+                      v-if="lesson.type === 'video' && lesson.video_url"
+                      class="shrink-0 hover:scale-110 transition-transform"
+                      @click="previewVideoUrl = lesson.video_url"
+                    >
+                      <component :is="typeIcon[lesson.type]" class="w-3.5 h-3.5" :class="typeColor[lesson.type]" />
+                    </button>
+                    <button
+                      v-else-if="lesson.type === 'quiz'"
+                      class="shrink-0 hover:scale-110 transition-transform"
+                      @click="toggleQuiz(lesson._id)"
+                    >
+                      <component :is="typeIcon[lesson.type]" class="w-3.5 h-3.5" :class="typeColor[lesson.type]" />
+                    </button>
+                    <component v-else :is="typeIcon[lesson.type]"
+                      class="shrink-0 w-3.5 h-3.5" :class="typeColor[lesson.type]" />
 
-                  <span class="w-10 shrink-0 text-xs font-mono text-gray-200 text-right">
-                    {{ mi + 1 }}.{{ ci + 1 }}.{{ li + 1 }}
-                  </span>
+                    <span class="w-10 shrink-0 text-xs font-mono text-gray-200 text-right">
+                      {{ mi + 1 }}.{{ ci + 1 }}.{{ li + 1 }}
+                    </span>
 
-                  <template v-if="editingLesson?._id === lesson._id">
-                    <div class="flex-1 flex flex-col gap-1">
-                      <input v-model="editingLesson.title" placeholder="Judul"
-                        class="w-full text-xs px-2 py-0.5 border border-indigo-300 rounded-lg focus:outline-none"
-                        @keyup.esc="editingLesson = null" />
-                      <input v-if="editingLesson.type === 'video'" v-model="editingLesson.video_url"
-                        placeholder="URL video"
-                        class="w-full text-xs px-2 py-0.5 border border-indigo-200 rounded-lg focus:outline-none text-gray-500" />
-                    </div>
-                    <button class="text-xs text-indigo-600 font-medium px-2 shrink-0" @click="saveLesson()">Simpan</button>
-                    <button class="text-xs text-gray-400 px-1 shrink-0" @click="editingLesson = null">✕</button>
-                  </template>
-                  <template v-else>
-                    <span class="flex-1 text-xs text-gray-700">{{ lesson.title }}</span>
-                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <RouterLink v-if="lesson.type === 'quiz'" :to="`/admin/quiz/${lesson._id}`"
-                        class="flex items-center gap-0.5 text-xs text-purple-600 hover:underline px-1.5 py-0.5 rounded hover:bg-purple-50 transition-colors">
-                        Soal <ExternalLink class="w-2.5 h-2.5 ml-0.5" />
-                      </RouterLink>
-                      <button class="p-1 text-gray-300 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-colors"
-                        @click="editingLesson = { ...lesson }">
-                        <Pencil class="w-3 h-3" />
-                      </button>
-                      <button class="p-1 text-gray-300 hover:text-red-500 rounded hover:bg-red-50 transition-colors"
-                        @click="confirmDeleteLesson(lesson)">
-                        <Trash2 class="w-3 h-3" />
-                      </button>
-                    </div>
-                  </template>
-                </div>
+                    <template v-if="editingLesson?._id === lesson._id">
+                      <div class="flex-1 flex flex-col gap-1">
+                        <input v-model="editingLesson.title" placeholder="Judul"
+                          class="w-full text-xs px-2 py-0.5 border border-indigo-300 rounded-lg focus:outline-none"
+                          @keyup.esc="editingLesson = null" />
+                        <input v-if="editingLesson.type === 'video'" v-model="editingLesson.video_url"
+                          placeholder="URL video"
+                          class="w-full text-xs px-2 py-0.5 border border-indigo-200 rounded-lg focus:outline-none text-gray-500" />
+                      </div>
+                      <button class="text-xs text-indigo-600 font-medium px-2 shrink-0" @click="saveLesson()">Simpan</button>
+                      <button class="text-xs text-gray-400 px-1 shrink-0" @click="editingLesson = null">✕</button>
+                    </template>
+                    <template v-else>
+                      <span class="flex-1 text-xs text-gray-700">{{ lesson.title }}</span>
+                      <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <!-- Chevron expand/collapse soal quiz -->
+                        <button v-if="lesson.type === 'quiz'"
+                          class="p-1 text-purple-300 hover:text-purple-600 rounded hover:bg-purple-50 transition-colors"
+                          :title="expandedQuizzes.has(lesson._id) ? 'Tutup soal' : 'Buka soal'"
+                          @click="toggleQuiz(lesson._id)">
+                          <ChevronDown v-if="expandedQuizzes.has(lesson._id)" class="w-3 h-3" />
+                          <ChevronRight v-else class="w-3 h-3" />
+                        </button>
+                        <button class="p-1 text-gray-300 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-colors"
+                          @click="editingLesson = { ...lesson }">
+                          <Pencil class="w-3 h-3" />
+                        </button>
+                        <button class="p-1 text-gray-300 hover:text-red-500 rounded hover:bg-red-50 transition-colors"
+                          @click="confirmDeleteLesson(lesson)">
+                          <Trash2 class="w-3 h-3" />
+                        </button>
+                      </div>
+                    </template>
+                  </div>
+
+                  <!-- Panel soal quiz (inline, muncul saat di-expand) -->
+                  <QuizEditorPanel
+                    v-if="lesson.type === 'quiz' && expandedQuizzes.has(lesson._id)"
+                    :lesson-id="lesson._id"
+                  />
+                </template>
 
                 <!-- Form tambah lesson -->
                 <div class="flex items-start gap-2 px-2 py-1.5">
