@@ -1668,9 +1668,11 @@ User navigates to /admin/*
 ```
 
 **FE Tasks:**
-- [ ] `src/layouts/AdminLayout.vue` — Navbar + sidebar admin (Dashboard, Courses, Quiz, Users, Bootcamps, Orders, Tasks, Revenue)
-- [ ] `router/routes/admin.ts` — semua route `/admin/*` dengan guard `requiresAdmin`
-- [ ] Update router guard di `router/index.ts` — cek `auth.user?.role === 'admin'`
+- [x] `src/layouts/AdminLayout.vue` — AppNavbar + sidebar card admin (Dashboard, Courses, Quiz, Users, Bootcamps, Orders, Tasks, Revenue); mobile pill nav
+- [x] `router/routes/admin.ts` — semua route `/admin/*` dengan guard `requiresAdmin`; placeholder views untuk semua sub-halaman
+- [x] Update router guard di `router/index.ts` — cek `auth.user?.role === 'admin'`
+- [x] `src/types/router.d.ts` — extend `RouteMeta` dengan `requiresAdmin`
+- [x] `src/seeds/adminSeeder.ts` — seed akun admin (`admin@gmail.com` / `123123123`); script `seed:admin`
 
 ---
 

@@ -8,6 +8,7 @@ import checkoutRoutes from './checkoutRoutes';
 import enrollmentRoutes from './enrollmentRoutes';
 import userRoutes from './userRoutes';
 import orderRoutes from './orderRoutes';
+import courseAdminRoutes from './admin/courseAdminRoutes';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/checkout', checkoutRoutes);
 router.use('/enrollments', enrollmentRoutes);
 router.use('/users', userRoutes);
 router.use('/orders', orderRoutes);
+router.use('/admin/courses', courseAdminRoutes);
 
 export default router;

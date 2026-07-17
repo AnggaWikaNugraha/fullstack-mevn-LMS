@@ -9,6 +9,7 @@ export interface ICourse extends Document {
   level: 'beginner' | 'intermediate' | 'advanced';
   isFree: boolean;
   price: number;           // harga dalam rupiah, 0 jika isFree
+  status: 'draft' | 'published';
   video_amount: number;
   total_lessons: number;
   course_duration: number; // total duration of all videos in seconds
@@ -28,6 +29,7 @@ const CourseSchema = new Schema<ICourse>(
     },
     isFree: { type: Boolean, default: false },
     price: { type: Number, default: 0 },
+    status: { type: String, enum: ['draft', 'published'], default: 'draft' },
     video_amount: { type: Number, default: 0 },
     total_lessons: { type: Number, default: 0 },
     course_duration: { type: Number, default: 0 },

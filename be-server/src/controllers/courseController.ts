@@ -13,7 +13,7 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
   try {
     const { topic, page = '1', limit = '10' } = req.query;
 
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { status: 'published' };
     if (topic) filter.topic = topic;
 
     const pageNum = Math.max(1, parseInt(page as string));
