@@ -50,6 +50,21 @@ const adminRoutes: RouteRecordRaw[] = [
         name: 'admin-bootcamps',
         component: () => import('@/views/admin/bootcamps/BootcampListView.vue'),
       },
+      {
+        path: 'bootcamps/new',
+        name: 'admin-bootcamp-new',
+        component: () => import('@/views/admin/bootcamps/BootcampFormView.vue'),
+      },
+      {
+        path: 'bootcamps/:id/edit',
+        name: 'admin-bootcamp-edit',
+        component: () => import('@/views/admin/bootcamps/BootcampFormView.vue'),
+      },
+      {
+        path: 'bootcamps/:id/content',
+        name: 'admin-bootcamp-content',
+        component: () => import('@/views/admin/bootcamps/BootcampContentView.vue'),
+      },
       // 6.6 Order Management
       {
         path: 'orders',

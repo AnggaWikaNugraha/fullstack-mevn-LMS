@@ -65,7 +65,8 @@ export const getBootcampDetail = async (req: Request, res: Response, next: NextF
   try {
     const { id } = req.params;
 
-    const bootcamp = await BootcampPackage.findById(id);
+    const bootcamp = await BootcampPackage.findById(id)
+      .populate('mentors.userId', 'name avatar_url');
     if (!bootcamp) {
       res.status(404).json({ success: false, message: 'Bootcamp not found.' });
       return;

@@ -8,7 +8,7 @@ export interface IUser extends Document {
   password?: string;   // optional — Google-only users have no password
   googleId?: string;   // Google OAuth "sub" identifier; present only on Google-linked accounts
   avatar_url?: string;
-  role: 'student' | 'instructor' | 'admin';
+  role: 'student' | 'instructor' | 'admin' | 'mentor';
 
   // Account verification status
   isVerified: boolean;
@@ -53,7 +53,7 @@ const UserSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['student', 'instructor', 'admin'],
+      enum: ['student', 'instructor', 'admin', 'mentor'],
       default: 'student',   // all new users are students by default
     },
     isVerified: {

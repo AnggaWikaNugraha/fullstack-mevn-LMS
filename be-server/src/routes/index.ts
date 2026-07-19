@@ -10,6 +10,7 @@ import userRoutes from './userRoutes';
 import orderRoutes from './orderRoutes';
 import courseAdminRoutes from './admin/courseAdminRoutes';
 import quizAdminRoutes from './admin/quizAdminRoutes';
+import bootcampAdminRoutes from './admin/bootcampAdminRoutes';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/users', userRoutes);
 router.use('/orders', orderRoutes);
 router.use('/admin/courses', courseAdminRoutes);
 router.use('/admin/quiz', quizAdminRoutes);
+router.use('/admin/bootcamps', bootcampAdminRoutes);
 
 export default router;

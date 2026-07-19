@@ -42,7 +42,8 @@ src/
 │   ├── orders.ts
 │   └── admin/
 │       ├── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
-│       └── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
+│       ├── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
+│       └── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -75,7 +76,11 @@ src/
 │       ├── useCourseForm.ts     # create/edit course form mutations
 │       ├── useCourseContent.ts  # course detail query + invalidate helper
 │       ├── useCourseEditor.ts   # expand state + all module/chapter/lesson CRUD mutations + expandedQuizzes/toggleQuiz
-│       └── useQuizEditor.ts     # quiz question CRUD mutations per lesson (add / edit / delete + showAddForm state)
+│       ├── useQuizEditor.ts     # quiz question CRUD mutations per lesson (add / edit / delete + showAddForm state)
+│       ├── useBootcampList.ts   # bootcamp list query + confirmDelete
+│       ├── useBootcampForm.ts   # create/edit package + mentor picker (toggleMentor / isMentorSelected / updateOccupation)
+│       ├── useBootcampContent.ts # package detail query + invalidate helper
+│       └── useBootcampEditor.ts  # expandedBatches + toggleBatch + expandAll/collapseAll + CRUD batch + session mutations
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
@@ -125,10 +130,14 @@ src/
 │   │   └── GoogleCallbackView.vue
 │   └── admin/
 │       ├── DashboardView.vue        # Placeholder
-│       └── courses/
-│           ├── CourseListView.vue   # Tabel course + status badge + toggle publish + edit/hapus
-│           ├── CourseFormView.vue   # Form create/edit course (title, desc, cover, topic, level, price)
-│           └── CourseContentView.vue # Tree outline editor (MS Word style): modul→bab→lesson; expand/collapse per level; klik ikon quiz → inline QuizEditorPanel; klik ikon video → modal preview YouTube
+│       ├── courses/
+│       │   ├── CourseListView.vue   # Tabel course + status badge + toggle publish + edit/hapus
+│       │   ├── CourseFormView.vue   # Form create/edit course (title, desc, cover, topic, level, price)
+│       │   └── CourseContentView.vue # Tree outline editor: modul→bab→lesson; klik ikon quiz → inline QuizEditorPanel; klik ikon video → modal preview YouTube
+│       └── bootcamps/
+│           ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
+│           ├── BootcampFormView.vue  # Form create/edit package; mentor picker (toggle user dengan role 'mentor' + input occupation)
+│           └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge); session rows (nomor badge + date+time chip); form tambah sesi sebagai card expand
 └── components/
     ├── ui/
     │   ├── GlobalErrorModal.vue
@@ -169,8 +178,9 @@ src/
 │   ├── userController.ts        # getProfile, updateProfile, changePassword
 │   ├── orderController.ts       # getMyOrders
 │   └── admin/
-│       ├── courseAdminController.ts  # Admin CRUD: course + module + chapter + lesson + cascade delete
-│       └── quizAdminController.ts    # Admin quiz CRUD: get/create/update/delete questions (dengan correct_index)
+│       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete
+│       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (dengan correct_index)
+│       └── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
 │   ├── adminMiddleware.ts   # adminOnly — cek role === 'admin'
@@ -205,12 +215,14 @@ src/
 │   ├── userRoutes.ts        # GET/PATCH /users/profile, PATCH /users/change-password
 │   ├── orderRoutes.ts       # GET /orders/my-orders
 │   └── admin/
-│       ├── courseAdminRoutes.ts  # All /admin/courses/* routes (protect + adminOnly middleware)
-│       └── quizAdminRoutes.ts    # All /admin/quiz/* routes (protect + adminOnly middleware)
+│       ├── courseAdminRoutes.ts      # All /admin/courses/* routes (protect + adminOnly middleware)
+│       ├── quizAdminRoutes.ts        # All /admin/quiz/* routes (protect + adminOnly middleware)
+│       └── bootcampAdminRoutes.ts    # All /admin/bootcamps/* routes (protect + adminOnly middleware)
 ├── seeds/
 │   ├── courseSeeder.ts      # npm run seed:courses  (semua course status: published)
 │   ├── lessonSeeder.ts      # npm run seed:lessons
-│   ├── bootcampSeeder.ts    # npm run seed:bootcamps
+│   ├── mentorSeeder.ts      # npm run seed:mentors  (5 mentor user, idempotent dengan $setOnInsert)
+│   ├── bootcampSeeder.ts    # npm run seed:bootcamps  (requires seed:mentors first)
 │   ├── allLessonsSeeder.ts  # npm run seed:all-lessons (all 6 courses; hard-clears collections first)
 │   ├── allQuizSeeder.ts     # npm run seed:all-quiz (5 questions × 15 quiz lessons)
 │   └── adminSeeder.ts       # npm run seed:admin  (admin@gmail.com / 123123123)
@@ -272,7 +284,7 @@ src/
 | Admin — Layout, Auth Guard & Admin Seed           | ✅ Done         |
 | Admin — Course Management (CRUD + Content Editor) | ✅ Done         |
 | Admin — Quiz Management                           | ✅ Done         |
-| Admin — User & Bootcamp Management                | 🔄 Coming Soon  |
+| Admin — User & Bootcamp Management                | 🔄 Coming Soon (Bootcamp ✅ Done)  |
 | Admin — Order & Task Review                       | 🔄 Coming Soon  |
 | Admin — Dashboard Stats & Revenue Report          | 🔄 Coming Soon  |
 | Bootcamp Checkout & Payment (Midtrans)            | 🔄 Coming Soon  |
@@ -1082,8 +1094,7 @@ description   → string
 image_url     → string
 status        → string (e.g. "open", "closed", "coming_soon")
 mentors       → array of embedded objects:
-  name          → string
-  image_url     → string
+  userId        → ref to User (role: 'mentor') — populated: name, avatar_url
   occupation    → string
 batches       → ref to BootcampBatch[]
 ```
@@ -1114,15 +1125,15 @@ session_end_time   → string (e.g. "12:00")
 ```
 
 **BE Tasks:**
-- [x] BootcampPackage model (`title`, `description`, `image_url`, `status`, `mentors[]`)
+- [x] BootcampPackage model (`title`, `description`, `image_url`, `status`, `mentors[]` — ref to User + occupation)
 - [x] BootcampBatch model (`packageId`, `title`, `sub_title`, `description`, `started_at`, `ended_at`, `quota_used_percentage`, `price`, `strikethrough_price`, `package_type`)
 - [x] BootcampSession model (`batchId`, `title`, `session_name`, `session_date`, `session_start_time`, `session_end_time`)
 - [x] `GET /api/bootcamps` — list all packages with pagination + search + `?status=`; `starting_price` dihitung dari batch termurah per package
-- [x] `GET /api/bootcamps/:id` — package detail with nested batches and sessions (single `$in` query for sessions)
-- [x] Seed script `npm run seed:bootcamps` — 3 packages (2 open, 1 coming_soon), 5 batches, 18 sessions
+- [x] `GET /api/bootcamps/:id` — package detail with nested batches and sessions; `mentors.userId` di-populate (name, avatar_url)
+- [x] Seed script `npm run seed:bootcamps` — 3 packages (2 open, 1 coming_soon), 5 batches, 18 sessions; requires `seed:mentors` first
 
 **FE Tasks:**
-- [x] `src/types/bootcamps.ts` — `BootcampMentor`, `BootcampSession`, `BootcampBatch`, `BootcampPackage`, `BootcampListResponse`, `BootcampDetailResponse`
+- [x] `src/types/bootcamps.ts` — `BootcampMentor` (userId populated: name + avatar_url), `BootcampSession`, `BootcampBatch`, `BootcampPackage`, `BootcampListResponse`, `BootcampDetailResponse`
 - [x] `src/api/bootcamps.ts` — `getBootcamps()`, `getBootcampDetail()`
 - [x] `src/composables/bootcamps/useBootcamps.ts` — `useQuery(['bootcamps'])`, staleTime 5 menit
 - [x] `src/composables/bootcamps/useBootcampDetail.ts` — `useQuery`, `selectedBatchIndex` (client-side switching), `formatRupiah`, `formatSessionDate`
@@ -1893,27 +1904,38 @@ Admin navigates to /admin/bootcamps
           |
           ▼
     CRUD BootcampPackage → BootcampBatch → BootcampSession
-    (struktur sama seperti Course Management)
+    Mentors dipilih dari user dengan role 'mentor' (bukan embedded string)
 ```
 
 **BE Tasks:**
-- [ ] `GET /api/admin/bootcamps` — list semua package
-- [ ] `GET /api/admin/bootcamps/:id` — detail package + batches + sessions (untuk pre-fill form edit)
-- [ ] `POST /api/admin/bootcamps` — create package
-- [ ] `PATCH /api/admin/bootcamps/:id` — edit package
-- [ ] `DELETE /api/admin/bootcamps/:id` — delete package + cascade: BootcampBatch, BootcampSession
-- [ ] `POST /api/admin/bootcamps/:id/batches` — tambah batch
-- [ ] `PATCH /api/admin/batches/:id` — edit batch
-- [ ] `DELETE /api/admin/batches/:id` — delete batch + cascade: BootcampSession
-- [ ] `POST /api/admin/batches/:id/sessions` — tambah session
-- [ ] `PATCH /api/admin/sessions/:id` — edit session
-- [ ] `DELETE /api/admin/sessions/:id` — delete session
+- [x] Update `User` model — tambah `'mentor'` ke enum `role`
+- [x] Update `BootcampPackage` model — `mentors[]` berubah dari embedded string (name, image_url) menjadi ref ke User (`userId` + `occupation`)
+- [x] `GET /api/admin/bootcamps` — list semua package + batch_count; populate `mentors.userId`
+- [x] `GET /api/admin/bootcamps/:id` — detail package + batches + sessions; populate `mentors.userId` (name, avatar_url)
+- [x] `GET /api/admin/bootcamps/mentors` — list semua user dengan `role: 'mentor'` (dipakai FE untuk mentor picker) — **harus sebelum `/:id` di router**
+- [x] `POST /api/admin/bootcamps` — create package
+- [x] `PATCH /api/admin/bootcamps/:id` — edit package; populate `mentors.userId` di response
+- [x] `DELETE /api/admin/bootcamps/:id` — delete package + cascade: BootcampBatch, BootcampSession
+- [x] `POST /api/admin/bootcamps/:id/batches` — tambah batch
+- [x] `PATCH /api/admin/bootcamps/batches/:id` — edit batch
+- [x] `DELETE /api/admin/bootcamps/batches/:id` — delete batch + cascade: BootcampSession
+- [x] `POST /api/admin/bootcamps/batches/:id/sessions` — tambah session
+- [x] `PATCH /api/admin/bootcamps/sessions/:id` — edit session
+- [x] `DELETE /api/admin/bootcamps/sessions/:id` — delete session
+- [x] Seed script `npm run seed:mentors` — upsert 5 mentor user (idempotent, pakai `$setOnInsert`)
+- [x] Update `bootcampSeeder.ts` — query mentor user by email, fail fast jika tidak ada; pakai `{ userId, occupation }` bukan `{ name, image_url }`
 - [ ] `GET /api/admin/batches/:id/enrollments` — list peserta yang enrolled di batch ini (Phase 7)
 
 **FE Tasks:**
-- [ ] `src/api/admin/bootcamps.ts`
-- [ ] `src/views/admin/bootcamps/BootcampAdminView.vue` — CRUD package + nested batch + session
-- [ ] `src/views/admin/bootcamps/BootcampEnrollmentsView.vue` — list peserta per batch + tombol revoke
+- [x] `src/api/admin/bootcamps.ts` — `MentorUser` (populated), `AdminMentor` (userId: MentorUser), `AdminMentorPayload` (userId: string), `PackagePayload.mentors: AdminMentorPayload[]`; tambah `adminListMentors()`
+- [x] `src/composables/admin/useBootcampList.ts` — list query + confirmDelete
+- [x] `src/composables/admin/useBootcampForm.ts` — create/edit mutations + pre-fill (konversi `m.userId._id` → string) + `availableMentors` query; fungsi `toggleMentor`, `isMentorSelected`, `updateOccupation`, `getMentorPayload`
+- [x] `src/composables/admin/useBootcampContent.ts` — package detail query + invalidate helper
+- [x] `src/composables/admin/useBootcampEditor.ts` — expand state (expandedBatches + toggleBatch + expandAll + collapseAll) + CRUD batch + session mutations
+- [x] `src/views/admin/bootcamps/BootcampListView.vue` — tabel package + status badge + tombol Konten/Edit/Hapus
+- [x] `src/views/admin/bootcamps/BootcampFormView.vue` — form create/edit; mentor picker: daftar user mentor dengan toggle pilih (UserCheck/UserX) + input occupation per mentor yang dipilih
+- [x] `src/views/admin/bootcamps/BootcampContentView.vue` — card-based editor: mentor strip di atas; batch cards (klik header untuk expand, chevron indikator, type badge, quota bar); session rows dengan nomor badge + nama + date+time chip; form tambah sesi sebagai card expand (bukan inline grid)
+- [ ] `src/views/admin/bootcamps/BootcampEnrollmentsView.vue` — list peserta per batch + tombol revoke (Phase 7)
 
 ---
 
@@ -2348,6 +2370,7 @@ issuedAt        → Date
 | GET    | /api/admin/tasks                              | List all task submissions (filter by status: submitted/approved/rejected) | JWT + Admin |
 | PATCH  | /api/admin/tasks/:submissionId                | Approve or reject task + optional feedback; reject removes Progress  | JWT + Admin |
 | GET    | /api/admin/bootcamps                          | List all bootcamp packages                                           | JWT + Admin |
+| GET    | /api/admin/bootcamps/mentors                  | List users with role 'mentor' — for mentor picker in form            | JWT + Admin |
 | GET    | /api/admin/bootcamps/:id                      | Bootcamp package detail + batches + sessions (for form pre-fill)     | JWT + Admin |
 | POST   | /api/admin/bootcamps                          | Create bootcamp package                                              | JWT + Admin |
 | PATCH  | /api/admin/bootcamps/:id                      | Update bootcamp package                                              | JWT + Admin |
@@ -2556,8 +2579,7 @@ issuedAt        → Date
 │ image_url        │
 │ status           │
 │ mentors[]        │
-│  └ name          │
-│  └ image_url     │
+│  └ userId (→User)│
 │  └ occupation    │
 └────────┬─────────┘
          │
@@ -2596,7 +2618,7 @@ issuedAt        → Date
 
 | Collection         | Indexes                                      | Notes                                      |
 |--------------------|----------------------------------------------|--------------------------------------------|
-| `users`            | `email` (unique)                             | `password` optional (Google-only users); `avatar_url` ditambah Phase 5 |
+| `users`            | `email` (unique)                             | `password` optional (Google-only users); `avatar_url` ditambah Phase 5; `role` enum: `student\|instructor\|admin\|mentor` |
 | `sessions`         | `userId + deviceId` (unique), TTL on `refreshExpiredAt` | One active session per device   |
 | `courses`          | -                                            | `price = 0` when `isFree = true`           |
 | `modules`          | `courseId`                                   | Ordered with `order` field                 |
@@ -2608,7 +2630,7 @@ issuedAt        → Date
 | `tasksubmissions`  | `[userId, lessonId]` (unique)                | One submission per user per lesson         |
 | `orders`               | `midtrans_order_id` (unique), `[userId, courseId, status]` | `type: 'course'\|'bootcamp'`; `batchId` populated for bootcamp orders (Phase 7) |
 | `enrollments`          | `[userId, courseId]` (unique)                | Created after payment settlement; `orderId` null for free courses    |
-| `bootcamppackages`     | -                                            | Mentors embedded (not a separate collection)                         |
+| `bootcamppackages`     | -                                            | `mentors[]` embedded dengan `userId` ref ke User (role: mentor) + `occupation`; tidak ada koleksi mentor terpisah |
 | `bootcampbatches`      | `packageId`                                  | `starting_price` aggregated from cheapest batch                      |
 | `bootcampsessions`     | `batchId`                                    | -                                                                    |
 | `bootcampenrollments`  | `[userId, batchId]` (unique)                 | Created after bootcamp payment settlement (Phase 7)                  |
