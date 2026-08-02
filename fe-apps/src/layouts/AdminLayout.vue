@@ -3,6 +3,7 @@ import { useRoute } from 'vue-router';
 import {
   LayoutDashboard,
   BookOpen,
+  Tag,
   CircleHelp,
   Users,
   GraduationCap,
@@ -17,6 +18,7 @@ const route = useRoute();
 const menuItems = [
   { to: '/admin',           label: 'Dashboard',  icon: LayoutDashboard, exact: true },
   { to: '/admin/courses',   label: 'Courses',    icon: BookOpen },
+  { to: '/admin/topics',    label: 'Topics',     icon: Tag },
   { to: '/admin/quiz',      label: 'Quiz',       icon: CircleHelp },
   { to: '/admin/users',     label: 'Users',      icon: Users },
   { to: '/admin/bootcamps', label: 'Bootcamps',  icon: GraduationCap },

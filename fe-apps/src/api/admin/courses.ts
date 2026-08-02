@@ -52,7 +52,6 @@ export interface CoursePayload {
   description: string;
   cover_url: string;
   topic: string;
-  topic_name: string;
   level: 'beginner' | 'intermediate' | 'advanced';
   isFree: boolean;
   price: number;

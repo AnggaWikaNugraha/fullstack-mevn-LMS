@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useQuery } from '@tanstack/vue-query';
 import { useCourseForm } from '@/composables/admin/useCourseForm';
+import { adminListTopics } from '@/api/admin/topics';
 import type { CoursePayload } from '@/api/admin/courses';
 
 const route = useRoute();
@@ -15,7 +17,6 @@ const form = ref<CoursePayload>({
   description: '',
   cover_url: '',
   topic: '',
-  topic_name: '',
   level: 'beginner',
   isFree: false,
   price: 0,
@@ -30,6 +31,11 @@ const {
   updating,
 } = useCourseForm(courseId.value);
 
+const { data: topicsData } = useQuery({
+  queryKey: ['admin-topics'],
+  queryFn: () => adminListTopics().then((r) => r.data.data!.topics),
+});
+
 watch(courseData, (val) => {
   if (val) {
     form.value = {
@@ -37,7 +43,6 @@ watch(courseData, (val) => {
       description: val.description,
       cover_url: val.cover_url,
       topic: val.topic,
-      topic_name: val.topic_name,
       level: val.level,
       isFree: val.isFree,
       price: val.price,
@@ -109,27 +114,16 @@ function handleSubmit() {
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Topic (slug)</label>
-          <input
-            v-model="form.topic"
-            type="text"
-            required
-            placeholder="web-dev"
-            class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Topic Name</label>
-          <input
-            v-model="form.topic_name"
-            type="text"
-            required
-            placeholder="Web Development"
-            class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Topik</label>
+        <select
+          v-model="form.topic"
+          required
+          class="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        >
+          <option value="" disabled>Pilih topik...</option>
+          <option v-for="t in topicsData" :key="t._id" :value="t.slug">{{ t.name }}</option>
+        </select>
       </div>
 
       <div>

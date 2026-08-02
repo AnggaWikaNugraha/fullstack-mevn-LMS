@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Course from '../models/Course';
+import Topic from '../models/Topic';
 
 dotenv.config();
 
@@ -91,14 +92,25 @@ const courses = [
   },
 ];
 
+const topics = [
+  { slug: 'web-dev',      name: 'Web Development' },
+  { slug: 'backend',      name: 'Backend Development' },
+  { slug: 'mobile',       name: 'Mobile Development' },
+  { slug: 'design',       name: 'UI/UX Design' },
+  { slug: 'data-science', name: 'Data Science' },
+];
+
 async function seed() {
   try {
     await mongoose.connect(process.env.MONGODB_URI as string);
     console.log('Connected to MongoDB');
 
-    await Course.deleteMany({});
-    console.log('Cleared existing courses');
+    // Seed topik dulu sebelum kursus
+    await Topic.deleteMany({});
+    await Topic.insertMany(topics);
+    console.log(`Seeded ${topics.length} topics`);
 
+    await Course.deleteMany({});
     await Course.insertMany(courses);
     console.log(`Seeded ${courses.length} courses`);
 

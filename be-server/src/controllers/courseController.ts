@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import Course from '../models/Course';
+import Topic from '../models/Topic';
 import Module from '../models/Module';
 import Chapter from '../models/Chapter';
 import Lesson, { ILesson } from '../models/Lesson';
@@ -43,27 +44,12 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
 };
 
 // ─── Daftar Topik ─────────────────────────────────────────────────────────────
-// Topik bukan koleksi terpisah — di-aggregate dari field topic + topic_name di Course
+// Diambil dari koleksi Topic, bukan di-aggregate dari Course
 
 export const getTopics = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const topics = await Course.aggregate([
-      {
-        $group: {
-          _id: '$topic',
-          topic_name: { $first: '$topic_name' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          topic: '$_id',
-          topic_name: 1,
-        },
-      },
-      { $sort: { topic: 1 } },
-    ]);
-
+    const raw = await Topic.find().sort({ slug: 1 });
+    const topics = raw.map((t) => ({ topic: t.slug, topic_name: t.name }));
     res.status(200).json({ success: true, data: { topics } });
   } catch (err) {
     next(err);

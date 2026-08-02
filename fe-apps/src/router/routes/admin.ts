@@ -11,6 +11,12 @@ const adminRoutes: RouteRecordRaw[] = [
         name: 'admin-dashboard',
         component: () => import('@/views/admin/AdminDashboardView.vue'),
       },
+      // 6.2 Topic Management
+      {
+        path: 'topics',
+        name: 'admin-topics',
+        component: () => import('@/views/admin/topics/TopicListView.vue'),
+      },
       // 6.2 Course Management
       {
         path: 'courses',

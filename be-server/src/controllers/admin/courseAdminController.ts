@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import Course from '../../models/Course';
+import Topic from '../../models/Topic';
 import Module from '../../models/Module';
 import Chapter from '../../models/Chapter';
 import Lesson from '../../models/Lesson';
@@ -84,13 +85,20 @@ export const getCourseDetail = async (req: AuthRequest, res: Response, next: Nex
 
 export const createCourse = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { title, description, cover_url, topic, topic_name, level, isFree, price } = req.body;
+    const { title, description, cover_url, topic, level, isFree, price } = req.body;
+
+    const topicDoc = await Topic.findOne({ slug: topic });
+    if (!topicDoc) {
+      res.status(400).json({ success: false, message: `Topik "${topic}" tidak ditemukan.` });
+      return;
+    }
+
     const course = await Course.create({
       title,
       description,
       cover_url,
-      topic,
-      topic_name,
+      topic: topicDoc.slug,
+      topic_name: topicDoc.name,
       level,
       isFree: isFree ?? false,
       price: isFree ? 0 : (price ?? 0),
@@ -107,7 +115,18 @@ export const createCourse = async (req: AuthRequest, res: Response, next: NextFu
 export const updateCourse = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, description, cover_url, topic, topic_name, level, isFree, price, status } = req.body;
+    const { title, description, cover_url, topic, level, isFree, price, status } = req.body;
+
+    // Jika topic diubah, resolve topic_name dari koleksi Topic
+    let resolvedTopic: { slug: string; name: string } | undefined;
+    if (topic !== undefined) {
+      const topicDoc = await Topic.findOne({ slug: topic });
+      if (!topicDoc) {
+        res.status(400).json({ success: false, message: `Topik "${topic}" tidak ditemukan.` });
+        return;
+      }
+      resolvedTopic = { slug: topicDoc.slug, name: topicDoc.name };
+    }
 
     const course = await Course.findByIdAndUpdate(
       id,
@@ -115,8 +134,7 @@ export const updateCourse = async (req: AuthRequest, res: Response, next: NextFu
         ...(title !== undefined && { title }),
         ...(description !== undefined && { description }),
         ...(cover_url !== undefined && { cover_url }),
-        ...(topic !== undefined && { topic }),
-        ...(topic_name !== undefined && { topic_name }),
+        ...(resolvedTopic && { topic: resolvedTopic.slug, topic_name: resolvedTopic.name }),
         ...(level !== undefined && { level }),
         ...(isFree !== undefined && { isFree }),
         ...(price !== undefined && { price: isFree ? 0 : price }),

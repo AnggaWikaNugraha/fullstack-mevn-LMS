@@ -43,7 +43,8 @@ src/
 │   └── admin/
 │       ├── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
 │       ├── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
-│       └── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
+│       ├── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
+│       └── topics.ts          # Admin topic CRUD; AdminTopic interface + adminListTopics/adminCreateTopic/adminUpdateTopic/adminDeleteTopic
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -80,12 +81,13 @@ src/
 │       ├── useBootcampList.ts   # bootcamp list query + confirmDelete
 │       ├── useBootcampForm.ts   # create/edit package + mentor picker (toggleMentor / isMentorSelected / updateOccupation)
 │       ├── useBootcampContent.ts # package detail query + invalidate helper
-│       └── useBootcampEditor.ts  # expandedBatches + toggleBatch + expandAll/collapseAll + CRUD batch + session mutations
+│       ├── useBootcampEditor.ts  # expandedBatches + toggleBatch + expandAll/collapseAll + CRUD batch + session mutations
+│       └── useTopicList.ts      # topic list query + add/edit/delete mutations + showAddForm/editingTopic state
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
 │   ├── ProfileLayout.vue      # Navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) + RouterView
-│   └── AdminLayout.vue        # Navbar + sidebar admin (Dashboard, Courses, Quiz, Users, …) + RouterView
+│   └── AdminLayout.vue        # Navbar + sidebar admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue) + RouterView
 ├── router/
 │   ├── index.ts               # Vue Router + navigation guard (requiresAuth + requiresAdmin)
 │   └── routes/
@@ -132,8 +134,10 @@ src/
 │       ├── DashboardView.vue        # Placeholder
 │       ├── courses/
 │       │   ├── CourseListView.vue   # Tabel course + status badge + toggle publish + edit/hapus
-│       │   ├── CourseFormView.vue   # Form create/edit course (title, desc, cover, topic, level, price)
+│       │   ├── CourseFormView.vue   # Form create/edit course (title, desc, cover, topic dropdown dari Topics API, level, price)
 │       │   └── CourseContentView.vue # Tree outline editor: modul→bab→lesson; klik ikon quiz → inline QuizEditorPanel; klik ikon video → modal preview YouTube
+│       ├── topics/
+│       │   └── TopicListView.vue    # Tabel topic (slug + nama); tambah form expand; inline edit row; hapus dengan guard course yang masih pakai
 │       └── bootcamps/
 │           ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
 │           ├── BootcampFormView.vue  # Form create/edit package; mentor picker (toggle user dengan role 'mentor' + input occupation)
@@ -178,9 +182,10 @@ src/
 │   ├── userController.ts        # getProfile, updateProfile, changePassword
 │   ├── orderController.ts       # getMyOrders
 │   └── admin/
-│       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete
+│       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete; topic_name di-resolve otomatis dari Topic collection
 │       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (dengan correct_index)
-│       └── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete
+│       ├── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete
+│       └── topicAdminController.ts     # Admin CRUD topic: list/create/update/delete (dengan guard course yang masih pakai slug)
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
 │   ├── adminMiddleware.ts   # adminOnly — cek role === 'admin'
@@ -190,7 +195,8 @@ src/
 ├── models/
 │   ├── User.ts             # name, email, password?, googleId?, avatar_url?, role, isVerified, otp
 │   ├── Session.ts          # Device session (TTL index)
-│   ├── Course.ts           # title, cover_url, topic, level, isFree, price, status (draft|published)
+│   ├── Topic.ts            # slug (unique), name — dipakai sebagai acuan topic kursus
+│   ├── Course.ts           # title, cover_url, topic (slug), topic_name (di-resolve dari Topic), level, isFree, price, status (draft|published)
 │   ├── Module.ts
 │   ├── Chapter.ts
 │   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
@@ -217,9 +223,10 @@ src/
 │   └── admin/
 │       ├── courseAdminRoutes.ts      # All /admin/courses/* routes (protect + adminOnly middleware)
 │       ├── quizAdminRoutes.ts        # All /admin/quiz/* routes (protect + adminOnly middleware)
-│       └── bootcampAdminRoutes.ts    # All /admin/bootcamps/* routes (protect + adminOnly middleware)
+│       ├── bootcampAdminRoutes.ts    # All /admin/bootcamps/* routes (protect + adminOnly middleware)
+│       └── topicAdminRoutes.ts       # All /admin/topics/* routes (protect + adminOnly middleware)
 ├── seeds/
-│   ├── courseSeeder.ts      # npm run seed:courses  (semua course status: published)
+│   ├── courseSeeder.ts      # npm run seed:courses  (seed 5 topik dulu ke koleksi Topic, lalu 6 course status: published)
 │   ├── lessonSeeder.ts      # npm run seed:lessons
 │   ├── mentorSeeder.ts      # npm run seed:mentors  (5 mentor user, idempotent dengan $setOnInsert)
 │   ├── bootcampSeeder.ts    # npm run seed:bootcamps  (requires seed:mentors first)
@@ -832,18 +839,18 @@ createdAt        → Date
 
 **Data Model — Topic:**
 ```
-topic         → string (unique slug, e.g. "web-dev") — matches Course.topic
-topic_name    → string (display name, e.g. "Web Development") — matches Course.topic_name
+slug      → string (unique, e.g. "web-dev") — acuan utama; matches Course.topic
+name      → string (display name, e.g. "Web Development") — matches Course.topic_name
 ```
 
-> Topics are not a separate collection — `/api/courses/topics` aggregates distinct `topic` + `topic_name` values from the Course collection.
+> Topics disimpan di koleksi `Topic` terpisah — `/api/courses/topics` membaca dari koleksi ini, bukan aggregate dari Course. `Course.topic_name` di-resolve otomatis dari Topic saat admin membuat/mengedit course.
 
 **BE Tasks:**
 - [x] Course model (`title`, `description`, `cover_url`, `topic`, `topic_name`, `level`, `isFree`, `video_amount`, `total_lessons`, `course_duration`)
-- [x] No separate Topic model — topics are aggregated from Course (`distinct topic + topic_name`)
+- [x] Topic model (`slug` unique, `name`) — koleksi terpisah; dikelola via admin panel
 - [x] `GET /api/courses` — list all courses, support optional `?topic=` query filter + pagination
-- [x] `GET /api/courses/topics` — list all unique topics
-- [x] Seed script (`npm run seed:courses`) — 6 sample courses across 4 topics
+- [x] `GET /api/courses/topics` — list all topics dari koleksi Topic (bukan aggregate)
+- [x] Seed script (`npm run seed:courses`) — seed 5 topik ke koleksi Topic, lalu 6 sample courses
 
 **FE Tasks:**
 - [x] `src/types/courses.ts` — `Course`, `Topic`, `CourseListResponse` types (`Pagination` moved to `types/api.ts`)
@@ -1720,7 +1727,7 @@ User navigates to /admin/*
 ```
 
 **FE Tasks:**
-- [x] `src/layouts/AdminLayout.vue` — AppNavbar + sidebar card admin (Dashboard, Courses, Quiz, Users, Bootcamps, Orders, Tasks, Revenue); mobile pill nav
+- [x] `src/layouts/AdminLayout.vue` — AppNavbar + sidebar card admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue); mobile pill nav
 - [x] `router/routes/admin.ts` — semua route `/admin/*` dengan guard `requiresAdmin`; placeholder views untuk semua sub-halaman
 - [x] Update router guard di `router/index.ts` — cek `auth.user?.role === 'admin'`
 - [x] `src/types/router.d.ts` — extend `RouteMeta` dengan `requiresAdmin`
@@ -1801,10 +1808,10 @@ passing_score → number (untuk tipe quiz)
 - [x] `POST /api/admin/chapters/:id/lessons` — tambah lesson
 - [x] `PATCH /api/admin/lessons/:id` — edit lesson
 - [x] `DELETE /api/admin/lessons/:id` — delete lesson + cascade: QuizQuestion, QuizAttempt, Progress, TaskSubmission (by lessonId)
-- [ ] `GET /api/admin/topics` — list semua topic
-- [ ] `POST /api/admin/topics` — tambah topic baru (`topic` slug + `topic_name`)
-- [ ] `PATCH /api/admin/topics/:topic` — rename topic
-- [ ] `DELETE /api/admin/topics/:topic` — hapus topic (cegah jika masih ada course yang pakai)
+- [x] `GET /api/admin/topics` — list semua topic dari koleksi Topic
+- [x] `POST /api/admin/topics` — tambah topic baru (validasi format slug; 409 jika slug sudah ada)
+- [x] `PATCH /api/admin/topics/:id` — update slug/nama; sync `topic` + `topic_name` di semua course yang pakai slug lama
+- [x] `DELETE /api/admin/topics/:id` — hapus topic (diblokir jika masih ada course yang menggunakan slug ini)
 
 **FE Tasks:**
 - [x] `src/api/admin/courses.ts` — TypeScript interfaces (AdminCourse, AdminLesson, dll.) + CRUD course + module + chapter + lesson + publish toggle
@@ -1813,9 +1820,9 @@ passing_score → number (untuk tipe quiz)
 - [x] `src/composables/admin/useCourseContent.ts` — course detail query + invalidate helper
 - [x] `src/composables/admin/useCourseEditor.ts` — expand state (auto-expand on load, collapse/expand all) + semua CRUD mutations module/chapter/lesson
 - [x] `src/views/admin/courses/CourseListView.vue` — tabel course + status badge (Draft/Published) + toggle publish + tombol Konten/Edit/Hapus
-- [x] `src/views/admin/courses/CourseFormView.vue` — form create/edit course; pre-fill otomatis saat edit via `GET /api/admin/courses/:id`
+- [x] `src/views/admin/courses/CourseFormView.vue` — form create/edit course; topic berupa dropdown dari Topics API (bukan input bebas); `topic_name` di-resolve BE secara otomatis dari slug yang dipilih
 - [x] `src/views/admin/courses/CourseContentView.vue` — tree outline editor (MS Word style): modul → bab → lesson dengan nomor hierarki (1, 1.1, 1.1.1); ikon per tipe (video/quiz/task); inline edit on hover; klik ikon PlayCircle → modal preview video (YouTube embed); klik ikon CircleHelp → inline QuizEditorPanel; tombol collapse/expand per modul + global Buka Semua / Tutup Semua
-- [ ] `src/views/admin/topics/TopicListView.vue` — CRUD topic
+- [x] `src/views/admin/topics/TopicListView.vue` — tabel topic (slug badge + nama); tambah form expand di atas; inline edit row dengan confirm/cancel; hapus diblokir jika slug masih dipakai course
 
 ---
 
@@ -2354,10 +2361,10 @@ issuedAt        → Date
 | POST   | /api/admin/chapters/:id/lessons               | Add lesson to chapter                                                | JWT + Admin |
 | PATCH  | /api/admin/lessons/:id                        | Update lesson                                                        | JWT + Admin |
 | DELETE | /api/admin/lessons/:id                        | Delete lesson + cascade: QuizQuestion, QuizAttempt, Progress, TaskSubmission | JWT + Admin |
-| GET    | /api/admin/topics                             | List all topics                                                      | JWT + Admin |
-| POST   | /api/admin/topics                             | Create topic (slug + display name)                                   | JWT + Admin |
-| PATCH  | /api/admin/topics/:topic                      | Rename topic                                                         | JWT + Admin |
-| DELETE | /api/admin/topics/:topic                      | Delete topic (blocked if still used by a course)                     | JWT + Admin |
+| GET    | /api/admin/topics                             | List all topics from Topic collection                                | JWT + Admin |
+| POST   | /api/admin/topics                             | Create topic (`slug` + `name`); validates slug format; 409 if duplicate | JWT + Admin |
+| PATCH  | /api/admin/topics/:id                         | Update topic; syncs `topic` + `topic_name` in all related courses    | JWT + Admin |
+| DELETE | /api/admin/topics/:id                         | Delete topic (blocked if any course still uses this slug)            | JWT + Admin |
 | GET    | /api/admin/quiz/:lessonId/questions           | Quiz questions **with** correct_index                                | JWT + Admin |
 | POST   | /api/admin/quiz/:lessonId/questions           | Add quiz question (Markdown, validated non-empty)                    | JWT + Admin |
 | PATCH  | /api/admin/quiz/questions/:questionId         | Edit quiz question                                                   | JWT + Admin |
@@ -2619,6 +2626,7 @@ issuedAt        → Date
 | Collection         | Indexes                                      | Notes                                      |
 |--------------------|----------------------------------------------|--------------------------------------------|
 | `users`            | `email` (unique)                             | `password` optional (Google-only users); `avatar_url` ditambah Phase 5; `role` enum: `student\|instructor\|admin\|mentor` |
+| `topics`           | `slug` (unique)                              | Dikelola via admin panel; `Course.topic_name` di-resolve otomatis dari koleksi ini saat create/update course |
 | `sessions`         | `userId + deviceId` (unique), TTL on `refreshExpiredAt` | One active session per device   |
 | `courses`          | -                                            | `price = 0` when `isFree = true`           |
 | `modules`          | `courseId`                                   | Ordered with `order` field                 |
