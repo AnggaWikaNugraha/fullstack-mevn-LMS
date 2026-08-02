@@ -45,7 +45,8 @@ src/
 │       ├── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
 │       ├── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
 │       ├── topics.ts          # Admin topic CRUD; AdminTopic interface + adminListTopics/adminCreateTopic/adminUpdateTopic/adminDeleteTopic
-│       └── users.ts           # Admin user; AdminUser/AdminUserDetail/AdminUserEnrollment/AdminUserOrder interfaces + adminListUsers/adminGetUser/adminUpdateUserRole
+│       ├── users.ts           # Admin user; AdminUser/AdminUserDetail/AdminUserEnrollment/AdminUserOrder interfaces + adminListUsers/adminGetUser/adminUpdateUserRole
+│       └── tasks.ts           # Admin task review; AdminTaskSubmission interface + adminListSubmissions/adminReviewSubmission
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -84,7 +85,9 @@ src/
 │       ├── useBootcampContent.ts # package detail query + invalidate helper
 │       ├── useBootcampEditor.ts  # expandedBatches + toggleBatch + expandAll/collapseAll + CRUD batch + session mutations
 │       ├── useTopicList.ts      # topic list query + add/edit/delete mutations + showAddForm/editingTopic state
-│       └── useUserList.ts       # user list query (search + pagination) + changeRole mutation
+│       ├── useUserList.ts       # user list query (search + pagination) + changeRole mutation
+│       ├── useUserDetail.ts     # user detail query + changeRole mutation + roleBadge/roleOptions/formatDate/formatRupiah/statusBadge helpers
+│       └── useTaskReview.ts     # task submission list query (filter by status + pagination) + approve/startReject/cancelReject/submitReject mutations
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
@@ -143,10 +146,12 @@ src/
 │       ├── users/
 │       │   ├── UserListView.vue     # Tabel user + avatar/inisial + search debounce + role dropdown inline + status badge + pagination
 │       │   └── UserDetailView.vue   # User card (role picker, join date, total spent); enrolled courses; riwayat order
-│       └── bootcamps/
-│           ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
-│           ├── BootcampFormView.vue  # Form create/edit package; mentor picker (toggle user dengan role 'mentor' + input occupation)
-│           └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge); session rows (nomor badge + date+time chip); form tambah sesi sebagai card expand
+│       ├── bootcamps/
+│       │   ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
+│       │   ├── BootcampFormView.vue  # Form create/edit package; mentor picker (toggle user dengan role 'mentor' + input occupation)
+│       │   └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge); session rows (nomor badge + date+time chip); form tambah sesi sebagai card expand
+│       └── tasks/
+│           └── TaskListView.vue      # Tabel submission + filter pills (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui/Tolak + form reject inline + pagination
 └── components/
     ├── ui/
     │   ├── GlobalErrorModal.vue
@@ -191,7 +196,8 @@ src/
 │       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (dengan correct_index)
 │       ├── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete
 │       ├── topicAdminController.ts     # Admin CRUD topic: list/create/update/delete (dengan guard course yang masih pakai slug)
-│       └── userAdminController.ts      # Admin user: listUsers (pagination+search) + getUserDetail (enrollments+orders+total_spent) + updateUserRole
+│       ├── userAdminController.ts      # Admin user: listUsers (pagination+search) + getUserDetail (enrollments+orders+total_spent) + updateUserRole
+│       └── taskAdminController.ts     # Admin task review: listSubmissions (filter by status + populate) + reviewSubmission (approve → upsert Progress; reject → delete Progress + set feedback)
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
 │   ├── adminMiddleware.ts   # adminOnly — cek role === 'admin'
@@ -231,7 +237,8 @@ src/
 │       ├── quizAdminRoutes.ts        # All /admin/quiz/* routes (protect + adminOnly middleware)
 │       ├── bootcampAdminRoutes.ts    # All /admin/bootcamps/* routes (protect + adminOnly middleware)
 │       ├── topicAdminRoutes.ts       # All /admin/topics/* routes (protect + adminOnly middleware)
-│       └── userAdminRoutes.ts        # All /admin/users/* routes (protect + adminOnly middleware)
+│       ├── userAdminRoutes.ts        # All /admin/users/* routes (protect + adminOnly middleware)
+│       └── taskAdminRoutes.ts        # All /admin/tasks/* routes (protect + adminOnly middleware)
 ├── seeds/
 │   ├── courseSeeder.ts      # npm run seed:courses  (seed 5 topik dulu ke koleksi Topic, lalu 6 course status: published)
 │   ├── lessonSeeder.ts      # npm run seed:lessons
@@ -298,8 +305,9 @@ src/
 | Admin — Layout, Auth Guard & Admin Seed           | ✅ Done         |
 | Admin — Course Management (CRUD + Content Editor) | ✅ Done         |
 | Admin — Quiz Management                           | ✅ Done         |
-| Admin — User & Bootcamp Management                | 🔄 Coming Soon (Bootcamp ✅ Done)  |
-| Admin — Order & Task Review                       | 🔄 Coming Soon  |
+| Admin — User & Bootcamp Management                | ✅ Done         |
+| Admin — Task Review                               | ✅ Done         |
+| Admin — Order Management                          | 🔄 Coming Soon  |
 | Admin — Dashboard Stats & Revenue Report          | 🔄 Coming Soon  |
 | Bootcamp Checkout & Payment (Midtrans)            | 🔄 Coming Soon  |
 | Bootcamp Saya (My Bootcamps)                      | 🔄 Coming Soon  |
@@ -1235,7 +1243,7 @@ BootcampSession — no new fields needed; channel name = session _id
 
 ### Phase 3 — Quiz & Task
 
-> Assumptions: Task = submit URL + optional note. Quiz retry = unlimited. `passing_score` stored on Lesson (default 70). Task auto-approved on submit.
+> Assumptions: Task = submit URL + optional note. Quiz retry = unlimited. `passing_score` stored on Lesson (default 70). Task **requires admin approval** (Phase 6.7) — Progress only created after admin approves.
 
 #### 3.1 Quiz
 
@@ -1387,7 +1395,7 @@ submittedAt     → Date
 - [x] `src/types/quiz.ts` — add `TaskSubmission`, `TaskSubmitPayload`
 - [x] `src/api/tasks.ts` — `submitTask()`, `getMySubmission()`
 - [x] `src/composables/courses/useTask.ts` — submission query, submit mutation
-- [x] `TaskPlayer.vue` — submit form (URL + note). If submission exists → read-only view with status badge + feedback if rejected (⚠️ update in Phase 6.7)
+- [x] `TaskPlayer.vue` — submit form (URL + note). If submission exists → status-aware view: ✅ Disetujui (hijau) / ❌ Ditolak (merah + feedback box) / 📎 Menunggu Review (kuning)
 - [x] `CourseDetailView.vue` — branch `activeLesson.type`: `'task'` → `<TaskPlayer>`. Hide "Tandai Selesai" for task
 - [x] `CourseSidebar.vue` — add "Task" label for `lesson.type === 'task'`
 
@@ -2004,13 +2012,13 @@ Admin navigates to /admin/tasks
           ├─→ Admin klik "Approve"
           |         ▼
           |   PATCH /api/admin/tasks/:submissionId  { status: 'approved' }
-          |   → Progress record tetap ada (sudah dibuat saat submit)
+          |   → upsert Progress record → lesson is_done ✓, lesson berikutnya terbuka
           |
           └─→ Admin klik "Reject"
                     ▼
               PATCH /api/admin/tasks/:submissionId  { status: 'rejected', feedback? }
-              → Hapus Progress record agar lesson kembali belum selesai
-              → FE student: lesson is_done kembali false, perlu submit ulang
+              → delete Progress record (jika ada) → lesson kembali belum selesai
+              → FE student: TaskPlayer tampilkan badge Ditolak + feedback admin; perlu submit ulang
 ```
 
 **TaskSubmission Model Changes:**
@@ -2020,14 +2028,18 @@ feedback  → string | null  (komentar admin saat reject, opsional)
 ```
 
 **BE Tasks:**
-- [ ] Update `TaskSubmission` model — tambah nilai `'approved'` dan `'rejected'` ke enum `status`, tambah `feedback?: string`
-- [ ] Update `POST /api/tasks/:lessonId/submit` — status default `'submitted'` (tidak lagi auto-approve Progress)
-- [ ] `GET /api/admin/tasks` — list semua submission, filter `?status=`, populate user + lesson + course
-- [ ] `PATCH /api/admin/tasks/:submissionId` — update status + feedback; jika `rejected` → delete Progress record
+- [x] Update `TaskSubmission` model — tambah nilai `'approved'` dan `'rejected'` ke enum `status`, tambah `feedback: string | null`
+- [x] Update `POST /api/tasks/:lessonId/submit` — status default `'submitted'`; Progress **tidak** dibuat otomatis — dibuat admin saat approve
+- [x] `GET /api/admin/tasks` — list semua submission, filter `?status=`, pagination; populate `userId` (name, email, avatar_url) + `lessonId` (title, type) + `courseId` (title)
+- [x] `PATCH /api/admin/tasks/:submissionId` — `approved` → upsert Progress; `rejected` → delete Progress + set feedback
+- [x] `taskAdminRoutes.ts` — semua route dilindungi `protect + adminOnly`; daftarkan di `routes/index.ts`
 
 **FE Tasks:**
-- [ ] Update `TaskPlayer.vue` — tampilkan status badge (Menunggu Review / Disetujui / Ditolak + feedback)
-- [ ] `src/views/admin/tasks/TaskReviewView.vue` — tabel submission + tombol Approve/Reject + form feedback
+- [x] Update `src/types/quiz.ts` — `TaskSubmission.status` sekarang `'submitted' | 'approved' | 'rejected'`; tambah field `feedback: string | null`
+- [x] Update `TaskPlayer.vue` — tampilkan UI per status: ✅ Disetujui (hijau), ❌ Ditolak (merah + feedback box admin), 📎 Menunggu Review (kuning)
+- [x] `src/api/admin/tasks.ts` — `AdminTaskSubmission` interface + `adminListSubmissions` / `adminReviewSubmission`
+- [x] `src/composables/admin/useTaskReview.ts` — list query (statusFilter + page) + `approve` / `startReject` / `cancelReject` / `submitReject` mutations + `rejectingId` / `feedbackText` state
+- [x] `src/views/admin/tasks/TaskListView.vue` — tabel submission + filter pills (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui/Tolak + form reject expand inline per baris + pagination
 
 ---
 

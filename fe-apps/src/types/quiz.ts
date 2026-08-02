@@ -33,6 +33,7 @@ export interface TaskSubmission {
   lessonId: string;
   submission_url: string;
   note: string;
-  status: 'submitted';
+  status: 'submitted' | 'approved' | 'rejected';
+  feedback: string | null;
   submittedAt: string;
 }

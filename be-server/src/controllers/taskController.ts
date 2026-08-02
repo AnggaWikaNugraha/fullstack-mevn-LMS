@@ -1,11 +1,9 @@
 import { Response, NextFunction } from 'express';
 import Lesson from '../models/Lesson';
 import TaskSubmission from '../models/TaskSubmission';
-import Progress from '../models/Progress';
 import { AuthRequest } from '../middlewares/authMiddleware';
 
 // ─── Submit Task ──────────────────────────────────────────────────────────────
-// Auto-approve: Progress langsung dibuat saat submit
 
 export const submitTask = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -46,13 +44,7 @@ export const submitTask = async (req: AuthRequest, res: Response, next: NextFunc
       { upsert: true, new: true }
     );
 
-    // Auto-approve: langsung buat Progress
-    await Progress.findOneAndUpdate(
-      { userId: req.userId, lessonId },
-      { userId: req.userId, lessonId, courseId: lesson.courseId, completedAt: new Date() },
-      { upsert: true, new: true }
-    );
-
+    // Progress dibuat oleh admin saat approve — tidak auto-approve di sini
     res.status(200).json({ success: true, data: { submission } });
   } catch (err) {
     next(err);

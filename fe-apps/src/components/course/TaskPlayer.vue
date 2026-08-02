@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue';
+import { watch, computed } from 'vue';
 import { useTask } from '@/composables/courses/useTask';
 import type { Lesson } from '@/types/courses';
 
@@ -24,6 +24,11 @@ watch(existingSubmission, (val) => {
   }
 }, { immediate: true });
 
+// Status efektif: pakai existingSubmission jika ada, fallback ke 'submitted' setelah mutasi sukses
+const effectiveStatus = computed(() =>
+  existingSubmission.value?.status ?? (submitted.value ? 'submitted' : null)
+);
+
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString('id-ID', {
     day: '2-digit', month: 'long', year: 'numeric',
@@ -39,11 +44,68 @@ const formatDate = (iso: string) =>
       <p class="text-gray-500 dark:text-gray-400">Memuat data tugas...</p>
     </div>
 
-    <!-- Sudah submit -->
-    <div v-else-if="submitted || existingSubmission" class="space-y-4">
-      <div class="rounded-2xl p-8 text-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+    <!-- Sudah pernah submit — tampilan berdasarkan status -->
+    <div v-else-if="effectiveStatus" class="space-y-4">
+
+      <!-- Disetujui -->
+      <div
+        v-if="effectiveStatus === 'approved'"
+        class="rounded-2xl p-8 text-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+      >
+        <div class="text-5xl mb-4">✅</div>
+        <h3 class="text-xl font-semibold text-green-700 dark:text-green-300 mb-1">Tugas Disetujui</h3>
+        <p v-if="existingSubmission" class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          Dikirim pada {{ formatDate(existingSubmission.submittedAt) }}
+        </p>
+        <a
+          :href="existingSubmission?.submission_url ?? submissionUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-block text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+        >
+          Lihat Link Tugas →
+        </a>
+      </div>
+
+      <!-- Ditolak -->
+      <div
+        v-else-if="effectiveStatus === 'rejected'"
+        class="rounded-2xl p-8 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+      >
+        <div class="text-center mb-4">
+          <div class="text-5xl mb-4">❌</div>
+          <h3 class="text-xl font-semibold text-red-700 dark:text-red-300 mb-1">Tugas Ditolak</h3>
+          <p v-if="existingSubmission" class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            Dikirim pada {{ formatDate(existingSubmission.submittedAt) }}
+          </p>
+          <a
+            :href="existingSubmission?.submission_url ?? submissionUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-block text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+          >
+            Lihat Link Tugas →
+          </a>
+        </div>
+        <div
+          v-if="existingSubmission?.feedback"
+          class="mt-4 rounded-xl bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-700 px-4 py-3"
+        >
+          <p class="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">Feedback Admin:</p>
+          <p class="text-sm text-red-800 dark:text-red-200">{{ existingSubmission.feedback }}</p>
+        </div>
+        <p class="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
+          Silakan perbaiki tugasmu dan kumpulkan ulang.
+        </p>
+      </div>
+
+      <!-- Menunggu Review -->
+      <div
+        v-else
+        class="rounded-2xl p-8 text-center bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
+      >
         <div class="text-5xl mb-4">📎</div>
-        <h3 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-1">Tugas Terkirim</h3>
+        <h3 class="text-xl font-semibold text-yellow-700 dark:text-yellow-300 mb-1">Menunggu Review</h3>
         <p v-if="existingSubmission" class="text-sm text-gray-500 dark:text-gray-400 mb-3">
           Dikirim pada {{ formatDate(existingSubmission.submittedAt) }}
         </p>

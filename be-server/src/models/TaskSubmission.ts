@@ -6,7 +6,8 @@ export interface ITaskSubmission extends Document {
   courseId: Types.ObjectId;  // denormalisasi
   submission_url: string;
   note: string;
-  status: 'submitted';       // Phase 3: auto-approve, tidak ada review
+  status: 'submitted' | 'approved' | 'rejected';
+  feedback: string | null;
   submittedAt: Date;
 }
 
@@ -17,7 +18,8 @@ const taskSubmissionSchema = new Schema<ITaskSubmission>(
     courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
     submission_url: { type: String, required: true },
     note: { type: String, default: '' },
-    status: { type: String, enum: ['submitted'], default: 'submitted' },
+    status: { type: String, enum: ['submitted', 'approved', 'rejected'], default: 'submitted' },
+    feedback: { type: String, default: null },
     submittedAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
