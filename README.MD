@@ -44,7 +44,8 @@ src/
 │       ├── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
 │       ├── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
 │       ├── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
-│       └── topics.ts          # Admin topic CRUD; AdminTopic interface + adminListTopics/adminCreateTopic/adminUpdateTopic/adminDeleteTopic
+│       ├── topics.ts          # Admin topic CRUD; AdminTopic interface + adminListTopics/adminCreateTopic/adminUpdateTopic/adminDeleteTopic
+│       └── users.ts           # Admin user; AdminUser/AdminUserDetail/AdminUserEnrollment/AdminUserOrder interfaces + adminListUsers/adminGetUser/adminUpdateUserRole
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -82,7 +83,8 @@ src/
 │       ├── useBootcampForm.ts   # create/edit package + mentor picker (toggleMentor / isMentorSelected / updateOccupation)
 │       ├── useBootcampContent.ts # package detail query + invalidate helper
 │       ├── useBootcampEditor.ts  # expandedBatches + toggleBatch + expandAll/collapseAll + CRUD batch + session mutations
-│       └── useTopicList.ts      # topic list query + add/edit/delete mutations + showAddForm/editingTopic state
+│       ├── useTopicList.ts      # topic list query + add/edit/delete mutations + showAddForm/editingTopic state
+│       └── useUserList.ts       # user list query (search + pagination) + changeRole mutation
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
@@ -138,6 +140,9 @@ src/
 │       │   └── CourseContentView.vue # Tree outline editor: modul→bab→lesson; klik ikon quiz → inline QuizEditorPanel; klik ikon video → modal preview YouTube
 │       ├── topics/
 │       │   └── TopicListView.vue    # Tabel topic (slug + nama); tambah form expand; inline edit row; hapus dengan guard course yang masih pakai
+│       ├── users/
+│       │   ├── UserListView.vue     # Tabel user + avatar/inisial + search debounce + role dropdown inline + status badge + pagination
+│       │   └── UserDetailView.vue   # User card (role picker, join date, total spent); enrolled courses; riwayat order
 │       └── bootcamps/
 │           ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
 │           ├── BootcampFormView.vue  # Form create/edit package; mentor picker (toggle user dengan role 'mentor' + input occupation)
@@ -185,7 +190,8 @@ src/
 │       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete; topic_name di-resolve otomatis dari Topic collection
 │       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (dengan correct_index)
 │       ├── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete
-│       └── topicAdminController.ts     # Admin CRUD topic: list/create/update/delete (dengan guard course yang masih pakai slug)
+│       ├── topicAdminController.ts     # Admin CRUD topic: list/create/update/delete (dengan guard course yang masih pakai slug)
+│       └── userAdminController.ts      # Admin user: listUsers (pagination+search) + getUserDetail (enrollments+orders+total_spent) + updateUserRole
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
 │   ├── adminMiddleware.ts   # adminOnly — cek role === 'admin'
@@ -224,7 +230,8 @@ src/
 │       ├── courseAdminRoutes.ts      # All /admin/courses/* routes (protect + adminOnly middleware)
 │       ├── quizAdminRoutes.ts        # All /admin/quiz/* routes (protect + adminOnly middleware)
 │       ├── bootcampAdminRoutes.ts    # All /admin/bootcamps/* routes (protect + adminOnly middleware)
-│       └── topicAdminRoutes.ts       # All /admin/topics/* routes (protect + adminOnly middleware)
+│       ├── topicAdminRoutes.ts       # All /admin/topics/* routes (protect + adminOnly middleware)
+│       └── userAdminRoutes.ts        # All /admin/users/* routes (protect + adminOnly middleware)
 ├── seeds/
 │   ├── courseSeeder.ts      # npm run seed:courses  (seed 5 topik dulu ke koleksi Topic, lalu 6 course status: published)
 │   ├── lessonSeeder.ts      # npm run seed:lessons
@@ -1891,14 +1898,15 @@ Admin navigates to /admin/users
 ```
 
 **BE Tasks:**
-- [ ] `GET /api/admin/users` — list semua user, pagination + search by name/email
-- [ ] `GET /api/admin/users/:id` — detail user + enrollment list + total spent (sum paid orders)
-- [ ] `PATCH /api/admin/users/:id/role` — ubah role
+- [x] `GET /api/admin/users` — list semua user; pagination + regex search by name/email; select field aman (tanpa password/otp)
+- [x] `GET /api/admin/users/:id` — detail user + enrollments (populate courseId) + orders (populate courseId) + `total_spent` (sum amount order berstatus 'paid')
+- [x] `PATCH /api/admin/users/:id/role` — ubah role; validasi enum; blokir admin mengubah role dirinya sendiri
 
 **FE Tasks:**
-- [ ] `src/api/admin/users.ts`
-- [ ] `src/views/admin/users/UserListView.vue` — tabel user + search + badge role
-- [ ] `src/views/admin/users/UserDetailView.vue` — detail user + enrollment list + order history
+- [x] `src/api/admin/users.ts` — interface `AdminUser`, `AdminUserDetail`, `AdminUserEnrollment`, `AdminUserOrder` + `adminListUsers` / `adminGetUser` / `adminUpdateUserRole`
+- [x] `src/composables/admin/useUserList.ts` — list query dengan computed queryKey (search + page) + debounce search + `changeRole` mutation
+- [x] `src/views/admin/users/UserListView.vue` — tabel user + avatar inisial (fallback jika tanpa foto) + search bar (debounce 350ms) + role dropdown inline + status badge Verified/Unverified + pagination
+- [x] `src/views/admin/users/UserDetailView.vue` — user card (avatar, nama, email, role picker, join date, total pembelian); section enrolled courses (cover + judul + topik + tanggal); section riwayat order (judul + midtrans ID + harga + status badge)
 
 ---
 

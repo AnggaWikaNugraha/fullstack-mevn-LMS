@@ -12,6 +12,7 @@ import courseAdminRoutes from './admin/courseAdminRoutes';
 import quizAdminRoutes from './admin/quizAdminRoutes';
 import bootcampAdminRoutes from './admin/bootcampAdminRoutes';
 import topicAdminRoutes from './admin/topicAdminRoutes';
+import userAdminRoutes from './admin/userAdminRoutes';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/admin/courses', courseAdminRoutes);
 router.use('/admin/quiz', quizAdminRoutes);
 router.use('/admin/bootcamps', bootcampAdminRoutes);
 router.use('/admin/topics', topicAdminRoutes);
+router.use('/admin/users', userAdminRoutes);
 
 export default router;

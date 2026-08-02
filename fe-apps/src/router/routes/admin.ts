@@ -50,6 +50,11 @@ const adminRoutes: RouteRecordRaw[] = [
         name: 'admin-users',
         component: () => import('@/views/admin/users/UserListView.vue'),
       },
+      {
+        path: 'users/:id',
+        name: 'admin-user-detail',
+        component: () => import('@/views/admin/users/UserDetailView.vue'),
+      },
       // 6.5 Bootcamp Management
       {
         path: 'bootcamps',
