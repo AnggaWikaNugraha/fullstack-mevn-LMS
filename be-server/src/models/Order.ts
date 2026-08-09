@@ -29,4 +29,8 @@ const orderSchema = new Schema<IOrder>(
 
 orderSchema.index({ userId: 1, courseId: 1, status: 1 });
 
+// Laporan pendapatan menyaring status + rentang paidAt tanpa userId,
+// jadi indeks di atas tidak terpakai untuk kueri itu
+orderSchema.index({ status: 1, paidAt: -1 });
+
 export default model<IOrder>('Order', orderSchema);

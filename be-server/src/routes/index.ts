@@ -14,6 +14,7 @@ import bootcampAdminRoutes from './admin/bootcampAdminRoutes';
 import topicAdminRoutes from './admin/topicAdminRoutes';
 import userAdminRoutes from './admin/userAdminRoutes';
 import taskAdminRoutes from './admin/taskAdminRoutes';
+import dashboardAdminRoutes from './admin/dashboardAdminRoutes';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/admin/bootcamps', bootcampAdminRoutes);
 router.use('/admin/topics', topicAdminRoutes);
 router.use('/admin/users', userAdminRoutes);
 router.use('/admin/tasks', taskAdminRoutes);
+router.use('/admin/dashboard', dashboardAdminRoutes);
 
 export default router;

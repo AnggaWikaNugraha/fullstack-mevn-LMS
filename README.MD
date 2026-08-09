@@ -2,6 +2,12 @@
 
 A fullstack Learning Management System (LMS) built with the **MEVN** stack — MongoDB, Express, Vue.js, Node.js.
 
+> 🇮🇩 Indonesian version: [README.id.md](README.id.md)
+>
+> Identifiers (file names, functions, endpoints, field names) are kept as-is in both
+> versions so they still match the code. In-app UI labels that are written in Indonesian
+> are also quoted verbatim rather than translated.
+
 ## Project Structure
 
 ```
@@ -28,25 +34,15 @@ src/
 │   ├── checkout.ts            # Checkout + payment verify API calls
 │   ├── enrollments.ts         # Enrollment check + my-courses API calls
 │   ├── users.ts               # User profile + change-password API calls
-│   └── orders.ts              # Purchase history API calls
-├── api/
-│   ├── client.ts              # Axios instance + interceptors (silent refresh)
-│   ├── auth.ts
-│   ├── courses.ts
-│   ├── bootcamps.ts
-│   ├── quiz.ts
-│   ├── tasks.ts
-│   ├── checkout.ts
-│   ├── enrollments.ts
-│   ├── users.ts
-│   ├── orders.ts
+│   ├── orders.ts              # Purchase history API calls
 │   └── admin/
 │       ├── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
 │       ├── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
 │       ├── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
 │       ├── topics.ts          # Admin topic CRUD; AdminTopic interface + adminListTopics/adminCreateTopic/adminUpdateTopic/adminDeleteTopic
 │       ├── users.ts           # Admin user; AdminUser/AdminUserDetail/AdminUserEnrollment/AdminUserOrder interfaces + adminListUsers/adminGetUser/adminUpdateUserRole
-│       └── tasks.ts           # Admin task review; AdminTaskSubmission interface + adminListSubmissions/adminReviewSubmission
+│       ├── tasks.ts           # Admin task review; AdminTaskSubmission interface + adminListSubmissions/adminReviewSubmission
+│       └── dashboard.ts       # Admin dashboard; AdminDashboardStats / AdminRevenueReport / RevenuePoint / RevenueTopCourse interfaces + adminGetDashboardStats/adminGetRevenueReport
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
 │   ├── auth/                  # Auth composables (logic separated from views)
@@ -87,11 +83,13 @@ src/
 │       ├── useTopicList.ts      # topic list query + add/edit/delete mutations + showAddForm/editingTopic state
 │       ├── useUserList.ts       # user list query (search + pagination) + changeRole mutation
 │       ├── useUserDetail.ts     # user detail query + changeRole mutation + roleBadge/roleOptions/formatDate/formatRupiah/statusBadge helpers
-│       └── useTaskReview.ts     # task submission list query (filter by status + pagination) + approve/startReject/cancelReject/submitReject mutations
+│       ├── useTaskReview.ts     # task submission list query (filter by status + pagination) + approve/startReject/cancelReject/submitReject mutations
+│       ├── useDashboardStats.ts  # dashboard stats query (counts + revenue + recent orders)
+│       └── useRevenueReport.ts   # revenue query keyed by year + zero-filled 12-month bars + year picker state
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
-│   ├── ProfileLayout.vue      # Navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) + RouterView
+│   ├── ProfileLayout.vue      # Navbar + sidebar (My Courses, Profile, Purchase History) + RouterView
 │   └── AdminLayout.vue        # Navbar + sidebar admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue) + RouterView
 ├── router/
 │   ├── index.ts               # Vue Router + navigation guard (requiresAuth + requiresAdmin)
@@ -125,9 +123,9 @@ src/
 │   ├── checkout/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
-│   │   ├── MyCoursesView.vue        # Grid kursus yang sudah dibeli + progress bar
-│   │   ├── ProfileView.vue          # Edit nama, avatar URL, ganti password
-│   │   └── PurchaseHistoryView.vue  # List riwayat order + status badge
+│   │   ├── MyCoursesView.vue        # Grid of purchased courses + progress bar
+│   │   ├── ProfileView.vue          # Edit name, avatar URL, change password
+│   │   └── PurchaseHistoryView.vue  # Order history list + status badge
 │   ├── auth/
 │   │   ├── LoginView.vue
 │   │   ├── RegisterView.vue
@@ -136,26 +134,30 @@ src/
 │   │   ├── ResetPasswordView.vue
 │   │   └── GoogleCallbackView.vue
 │   └── admin/
-│       ├── DashboardView.vue        # Placeholder
+│       ├── AdminDashboardView.vue  # 4 stat cards (users, courses, enrollments, revenue) + recent transactions table
 │       ├── courses/
-│       │   ├── CourseListView.vue   # Tabel course + status badge + toggle publish + edit/hapus
-│       │   ├── CourseFormView.vue   # Form create/edit course (title, desc, cover, topic dropdown dari Topics API, level, price)
-│       │   └── CourseContentView.vue # Tree outline editor: modul→bab→lesson; klik ikon quiz → inline QuizEditorPanel; klik ikon video → modal preview YouTube
+│       │   ├── CourseListView.vue   # Course table + status badge + publish toggle + edit/delete
+│       │   ├── CourseFormView.vue   # Create/edit course form (title, desc, cover, topic dropdown from the Topics API, level, price)
+│       │   └── CourseContentView.vue # Tree outline editor: module→chapter→lesson; click the quiz icon → inline QuizEditorPanel; click the video icon → YouTube preview modal
 │       ├── topics/
-│       │   └── TopicListView.vue    # Tabel topic (slug + nama); tambah form expand; inline edit row; hapus dengan guard course yang masih pakai
+│       │   └── TopicListView.vue    # Topic table (slug + name); expanding add form; inline row edit; delete guarded while a course still uses the slug
 │       ├── users/
-│       │   ├── UserListView.vue     # Tabel user + avatar/inisial + search debounce + role dropdown inline + status badge + pagination
-│       │   └── UserDetailView.vue   # User card (role picker, join date, total spent); enrolled courses; riwayat order
+│       │   ├── UserListView.vue     # User table + avatar/initials + debounced search + inline role dropdown + status badge + pagination
+│       │   └── UserDetailView.vue   # User card (role picker, join date, total spent); enrolled courses; order history
 │       ├── bootcamps/
-│       │   ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
-│       │   ├── BootcampFormView.vue  # Form create/edit package; mentor picker (toggle user dengan role 'mentor' + input occupation)
-│       │   └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge); session rows (nomor badge + date+time chip); form tambah sesi sebagai card expand
-│       └── tasks/
-│           └── TaskListView.vue      # Tabel submission + filter pills (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui/Tolak + form reject inline + pagination
+│       │   ├── BootcampListView.vue  # Package table + status badge + Content/Edit/Delete buttons
+│       │   ├── BootcampFormView.vue  # Create/edit package form; mentor picker (toggle users with role 'mentor' + occupation input)
+│       │   └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge); session rows (number badge + date+time chip); add-session form as an expanding card
+│       ├── tasks/
+│       │   └── TaskListView.vue      # Submission table + filter pills (All/Pending/Approved/Rejected) + Approve/Reject buttons + inline reject form + pagination
+│       ├── orders/
+│       │   └── OrderListView.vue     # Placeholder
+│       └── revenue/
+│           └── RevenueView.vue       # 4 stat cards + CSS bar chart (12 months) + top courses table + year picker
 └── components/
     ├── ui/
     │   ├── GlobalErrorModal.vue
-    │   ├── AppNavbar.vue           # Dropdown user menu (Course Saya, Profil, Riwayat Pembelian, Logout)
+    │   ├── AppNavbar.vue           # User dropdown menu (My Courses, Profile, Purchase History, Logout)
     │   ├── AppFooter.vue
     │   └── GoogleSignInButton.vue
     ├── sections/
@@ -171,7 +173,7 @@ src/
     │   ├── QuizPlayer.vue
     │   └── TaskPlayer.vue
     └── admin/
-        └── QuizEditorPanel.vue  # Inline quiz CRUD panel: daftar soal + edit/hapus + form tambah soal (toggle)
+        └── QuizEditorPanel.vue  # Inline quiz CRUD panel: question list + edit/delete + add-question form (toggle)
 ```
 
 ### Backend (`be-server/src/`)
@@ -192,23 +194,24 @@ src/
 │   ├── userController.ts        # getProfile, updateProfile, changePassword
 │   ├── orderController.ts       # getMyOrders
 │   └── admin/
-│       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete; topic_name di-resolve otomatis dari Topic collection
-│       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (dengan correct_index)
+│       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete; topic_name resolved automatically from the Topic collection
+│       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (with correct_index)
 │       ├── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete
-│       ├── topicAdminController.ts     # Admin CRUD topic: list/create/update/delete (dengan guard course yang masih pakai slug)
+│       ├── topicAdminController.ts     # Admin CRUD topic: list/create/update/delete (guarded while a course still uses the slug)
 │       ├── userAdminController.ts      # Admin user: listUsers (pagination+search) + getUserDetail (enrollments+orders+total_spent) + updateUserRole
-│       └── taskAdminController.ts     # Admin task review: listSubmissions (filter by status + populate) + reviewSubmission (approve → upsert Progress; reject → delete Progress + set feedback)
+│       ├── taskAdminController.ts     # Admin task review: listSubmissions (filter by status + populate) + reviewSubmission (approve → upsert Progress; reject → delete Progress + set feedback)
+│       └── dashboardAdminController.ts # Admin dashboard: getDashboardStats (counts + revenue + 5 recent orders) + getRevenueReport (12-month series + top courses + summary, all WIB-based)
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
-│   ├── adminMiddleware.ts   # adminOnly — cek role === 'admin'
+│   ├── adminMiddleware.ts   # adminOnly — checks role === 'admin'
 │   ├── errorHandler.ts
 │   ├── rateLimiter.ts
 │   └── requestLogger.ts
 ├── models/
 │   ├── User.ts             # name, email, password?, googleId?, avatar_url?, role, isVerified, otp
 │   ├── Session.ts          # Device session (TTL index)
-│   ├── Topic.ts            # slug (unique), name — dipakai sebagai acuan topic kursus
-│   ├── Course.ts           # title, cover_url, topic (slug), topic_name (di-resolve dari Topic), level, isFree, price, status (draft|published)
+│   ├── Topic.ts            # slug (unique), name — used as the reference list for course topics
+│   ├── Course.ts           # title, cover_url, topic (slug), topic_name (resolved from Topic), level, isFree, price, status (draft|published)
 │   ├── Module.ts
 │   ├── Chapter.ts
 │   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
@@ -238,11 +241,12 @@ src/
 │       ├── bootcampAdminRoutes.ts    # All /admin/bootcamps/* routes (protect + adminOnly middleware)
 │       ├── topicAdminRoutes.ts       # All /admin/topics/* routes (protect + adminOnly middleware)
 │       ├── userAdminRoutes.ts        # All /admin/users/* routes (protect + adminOnly middleware)
-│       └── taskAdminRoutes.ts        # All /admin/tasks/* routes (protect + adminOnly middleware)
+│       ├── taskAdminRoutes.ts        # All /admin/tasks/* routes (protect + adminOnly middleware)
+│       └── dashboardAdminRoutes.ts   # All /admin/dashboard/* routes (protect + adminOnly middleware)
 ├── seeds/
-│   ├── courseSeeder.ts      # npm run seed:courses  (seed 5 topik dulu ke koleksi Topic, lalu 6 course status: published)
+│   ├── courseSeeder.ts      # npm run seed:courses  (seeds 5 topics into the Topic collection first, then 6 courses with status: published)
 │   ├── lessonSeeder.ts      # npm run seed:lessons
-│   ├── mentorSeeder.ts      # npm run seed:mentors  (5 mentor user, idempotent dengan $setOnInsert)
+│   ├── mentorSeeder.ts      # npm run seed:mentors  (5 mentor users, idempotent via $setOnInsert)
 │   ├── bootcampSeeder.ts    # npm run seed:bootcamps  (requires seed:mentors first)
 │   ├── allLessonsSeeder.ts  # npm run seed:all-lessons (all 6 courses; hard-clears collections first)
 │   ├── allQuizSeeder.ts     # npm run seed:all-quiz (5 questions × 15 quiz lessons)
@@ -299,16 +303,16 @@ src/
 | Bootcamp List & Detail                            | ✅ Done         |
 | Quiz & Task                                       | ✅ Done         |
 | Checkout & Payment (Midtrans)                     | ✅ Done         |
-| Course Saya (My Courses)                          | ✅ Done         |
-| User Profile (edit nama, avatar, password)        | ✅ Done         |
-| Purchase History (riwayat pembelian)              | ✅ Done         |
+| My Courses                                        | ✅ Done         |
+| User Profile (edit name, avatar, password)        | ✅ Done         |
+| Purchase History                                  | ✅ Done         |
 | Admin — Layout, Auth Guard & Admin Seed           | ✅ Done         |
 | Admin — Course Management (CRUD + Content Editor) | ✅ Done         |
 | Admin — Quiz Management                           | ✅ Done         |
 | Admin — User & Bootcamp Management                | ✅ Done         |
 | Admin — Task Review                               | ✅ Done         |
 | Admin — Order Management                          | 🔄 Coming Soon  |
-| Admin — Dashboard Stats & Revenue Report          | 🔄 Coming Soon  |
+| Admin — Dashboard Stats & Revenue Report          | ✅ Done         |
 | Bootcamp Checkout & Payment (Midtrans)            | 🔄 Coming Soon  |
 | Bootcamp Saya (My Bootcamps)                      | 🔄 Coming Soon  |
 | Course Completion Certificate (PDF download)      | 🔄 Coming Soon  |
@@ -858,14 +862,14 @@ slug      → string (unique, e.g. "web-dev") — acuan utama; matches Course.to
 name      → string (display name, e.g. "Web Development") — matches Course.topic_name
 ```
 
-> Topics disimpan di koleksi `Topic` terpisah — `/api/courses/topics` membaca dari koleksi ini, bukan aggregate dari Course. `Course.topic_name` di-resolve otomatis dari Topic saat admin membuat/mengedit course.
+> Topics live in a separate `Topic` collection — `/api/courses/topics` reads from it rather than aggregating over Course. `Course.topic_name` is resolved automatically from Topic whenever an admin creates or edits a course.
 
 **BE Tasks:**
 - [x] Course model (`title`, `description`, `cover_url`, `topic`, `topic_name`, `level`, `isFree`, `video_amount`, `total_lessons`, `course_duration`)
-- [x] Topic model (`slug` unique, `name`) — koleksi terpisah; dikelola via admin panel
+- [x] Topic model (`slug` unique, `name`) — a separate collection; managed from the admin panel
 - [x] `GET /api/courses` — list all courses, support optional `?topic=` query filter + pagination
-- [x] `GET /api/courses/topics` — list all topics dari koleksi Topic (bukan aggregate)
-- [x] Seed script (`npm run seed:courses`) — seed 5 topik ke koleksi Topic, lalu 6 sample courses
+- [x] `GET /api/courses/topics` — list all topics from the Topic collection (not an aggregate)
+- [x] Seed script (`npm run seed:courses`) — seeds 5 topics into the Topic collection, then 6 sample courses
 
 **FE Tasks:**
 - [x] `src/types/courses.ts` — `Course`, `Topic`, `CourseListResponse` types (`Pagination` moved to `types/api.ts`)
@@ -1023,7 +1027,7 @@ completedAt   → Date
 - [x] Progress model (`userId`, `lessonId`, `courseId`, `completedAt`) — unique index on `[userId, lessonId]`
 - [x] `optionalProtect` middleware — passes unauthenticated requests through; attaches `req.userId` if token is valid
 - [x] `GET /api/courses/:id` — course detail + nested modules → chapters → lessons with dynamic `is_done` + `is_locked` per user
-- [x] `POST /api/courses/update-progress` — mark lesson as complete (`{ lesson_id }` in body), upsert Progress; jika course `isFree: true` → upsert Enrollment (orderId: null) sekaligus (⚠️ update existing code in Phase 4)
+- [x] `POST /api/courses/update-progress` — mark lesson as complete (`{ lesson_id }` in body), upsert Progress; if the course is `isFree: true` → also upsert Enrollment (orderId: null) (⚠️ update existing code in Phase 4)
 - [x] `GET /api/courses/:id/progress` — completed lesson count + percentage for a course, requires auth
 - [x] Seed script `npm run seed:lessons` — 2 modules, 4 chapters, 14 lessons (12 video + 2 quiz) for "Belajar Vue 3 dari Nol"
 
@@ -1150,21 +1154,21 @@ session_end_time   → string (e.g. "12:00")
 - [x] BootcampPackage model (`title`, `description`, `image_url`, `status`, `mentors[]` — ref to User + occupation)
 - [x] BootcampBatch model (`packageId`, `title`, `sub_title`, `description`, `started_at`, `ended_at`, `quota_used_percentage`, `price`, `strikethrough_price`, `package_type`)
 - [x] BootcampSession model (`batchId`, `title`, `session_name`, `session_date`, `session_start_time`, `session_end_time`)
-- [x] `GET /api/bootcamps` — list all packages with pagination + search + `?status=`; `starting_price` dihitung dari batch termurah per package
-- [x] `GET /api/bootcamps/:id` — package detail with nested batches and sessions; `mentors.userId` di-populate (name, avatar_url)
+- [x] `GET /api/bootcamps` — list all packages with pagination + search + `?status=`; `starting_price` computed from the cheapest batch per package
+- [x] `GET /api/bootcamps/:id` — package detail with nested batches and sessions; `mentors.userId` populated (name, avatar_url)
 - [x] Seed script `npm run seed:bootcamps` — 3 packages (2 open, 1 coming_soon), 5 batches, 18 sessions; requires `seed:mentors` first
 
 **FE Tasks:**
 - [x] `src/types/bootcamps.ts` — `BootcampMentor` (userId populated: name + avatar_url), `BootcampSession`, `BootcampBatch`, `BootcampPackage`, `BootcampListResponse`, `BootcampDetailResponse`
 - [x] `src/api/bootcamps.ts` — `getBootcamps()`, `getBootcampDetail()`
-- [x] `src/composables/bootcamps/useBootcamps.ts` — `useQuery(['bootcamps'])`, staleTime 5 menit
+- [x] `src/composables/bootcamps/useBootcamps.ts` — `useQuery(['bootcamps'])`, staleTime 5 minutes
 - [x] `src/composables/bootcamps/useBootcampDetail.ts` — `useQuery`, `selectedBatchIndex` (client-side switching), `formatRupiah`, `formatSessionDate`
-- [x] `BootcampSection.vue` — grid card + skeleton loading + error/empty state, mounted di `HomeView`
-- [x] `BootcampCard.vue` — cover image, status badge, mentor avatars, starting price, link ke detail
-- [x] `/bootcamps/:id` — `BootcampDetailView.vue` — cover header, deskripsi, mentor list, batch tabs, session list, sticky CTA card
-- [x] CTA card — harga + strikethrough price, progress bar kuota, tombol disabled saat `coming_soon`/`closed`/quota penuh
-- [x] Login redirect — simpan `redirect_after_login` ke localStorage, push ke `/auth/login`
-- [x] Fix URL `/bootcamp` → `/bootcamps` di `BenefitsSection.vue` dan `AppFooter.vue`
+- [x] `BootcampSection.vue` — grid card + skeleton loading + error/empty state, mounted in `HomeView`
+- [x] `BootcampCard.vue` — cover image, status badge, mentor avatars, starting price, link to detail
+- [x] `/bootcamps/:id` — `BootcampDetailView.vue` — cover header, description, mentor list, batch tabs, session list, sticky CTA card
+- [x] CTA card — price + strikethrough price, quota progress bar, button disabled when `coming_soon`/`closed`/quota is full
+- [x] Login redirect — store `redirect_after_login` in localStorage, push to `/auth/login`
+- [x] Fix URL `/bootcamp` → `/bootcamps` in `BenefitsSection.vue` and `AppFooter.vue`
 
 ---
 
@@ -1331,7 +1335,7 @@ passing_score → number, default: 70              (new field)
 - [x] `src/types/quiz.ts` — `QuizQuestion`, `QuizAttemptResult`, `QuizSubmitPayload`
 - [x] `src/api/quiz.ts` — `getQuizQuestions()`, `submitQuizAnswers()`, `getMyAttempt()`
 - [x] `src/composables/courses/useQuiz.ts` — questions query, attempt query, submit mutation, `userAnswers` state, `allAnswered` computed
-- [x] `QuizPlayer.vue` — form soal → loading → result (score + LULUS/GAGAL + retry). If `isDone` → show result directly
+- [x] `QuizPlayer.vue` — question form → loading → result (score + LULUS/GAGAL + retry). If `isDone` → show result directly
 - [x] `CourseDetailView.vue` — branch `activeLesson.type`: `'quiz'` → `<QuizPlayer>`. Fix `handleVideoEnded` guard. Hide "Tandai Selesai" for quiz
 - [x] `CourseSidebar.vue` — already has "Quiz" label — no change needed
 
@@ -1366,7 +1370,7 @@ User clicks task lesson in sidebar
               BE: save TaskSubmission (status: 'submitted')
               ⚠️  Progress NOT created yet — lesson stays locked until admin approves (Phase 6.7)
               FE: invalidateQueries(['submission', lessonId])
-              sidebar: lesson tampil badge "Menunggu Review" (bukan is_done ✓)
+              sidebar: lesson shows the "Menunggu Review" badge (not is_done ✓)
 ```
 
 > **Phase 6.7 changes this behavior**: `POST /api/tasks/:lessonId/submit` no longer auto-creates Progress.
@@ -1380,7 +1384,7 @@ courseId        → ref to Course (denormalized)
 submission_url  → string
 note            → string (optional)
 status          → 'submitted' | 'approved' | 'rejected'
-feedback        → string | null  (diisi admin saat reject)
+feedback        → string | null  (filled in by admin on reject)
 submittedAt     → Date
 ```
 > Unique index on `[userId, lessonId]` — one submission per user per lesson.
@@ -1401,7 +1405,7 @@ submittedAt     → Date
 
 ### Phase 4 — Checkout & Subscription
 
-> Per-course purchase (lifetime access). Payment via Midtrans Snap. Free courses (`isFree: true`) skip checkout entirely. `Order` locks in price at creation time. Enrollment dibuat oleh Midtrans webhook setelah settlement.
+> Per-course purchase (lifetime access). Payment via Midtrans Snap. Free courses (`isFree: true`) skip checkout entirely. `Order` locks in price at creation time. Enrollment is created by the Midtrans webhook after settlement.
 
 #### 4.1 Course Checkout
 
@@ -1414,36 +1418,36 @@ User navigates to /courses/:id
     GET /api/courses/:id  (optionalProtect — middleware authMiddleware.ts)
     Response: { course: { ...courseData, isEnrolled: boolean, modules: [...] } }
           |
-          ├─→ course.isFree = true    → semua lesson accessible, skip enrollment check
-          ├─→ isEnrolled: true        → tampilkan konten kursus normal
+          ├─→ course.isFree = true    → all lessons accessible, skip enrollment check
+          ├─→ isEnrolled: true        → render the course content normally
           └─→ isEnrolled: false
                     |
                     ▼
-              CourseDetailView.vue tampilkan tombol "Beli Kurs"
-              User klik → useCheckout.ts dipanggil
+              CourseDetailView.vue shows the "Beli Kurs" button
+              User clicks → useCheckout.ts is invoked
                     |
                     ▼
               POST /api/checkout/create-order  { courseId }
-              ├─→ course gratis       → 400 error
-              ├─→ sudah enrolled      → 409 error
-              ├─→ ada pending order   → reuse snap_token yang ada
+              ├─→ free course         → 400 error
+              ├─→ already enrolled    → 409 error
+              ├─→ pending order found → reuse the existing snap_token
               └─→ buat Order baru (status: 'pending') + generate Snap token
                     |
                     ▼
-              FE: loadSnapScript() → inject snap.js ke <head>
+              FE: loadSnapScript() → inject snap.js into <head>
               window.snap.pay(snap_token, { onSuccess, onPending, onError, onClose })
               Midtrans popup terbuka
                     |
-              User bayar
+              User pays
                     |
                     ▼
               ┌─────────────────────────────────────────────────┐
-              │  Dua path berjalan paralel                       │
+              │  Two paths run in parallel                       │
               └─────────────────────────────────────────────────┘
                     ↓                              ↓
           Snap callback (FE)            Midtrans POST webhook (server-to-server)
           onSuccess / onPending         POST /api/checkout/webhook
-          router.push ke               1. Verifikasi SHA512 signature_key
+          router.push to               1. Verify SHA512 signature_key
           /checkout/result             2. Order.status = 'paid', paidAt = now
           ?order_id=                   3. Enrollment.findOneAndUpdate (upsert)
           &course_id=                     { userId, courseId, orderId, enrolledAt }
@@ -1451,22 +1455,22 @@ User navigates to /courses/:id
                     ↓
           CheckoutResultView.vue
           useEnrollment(courseId).startPolling(onEnrolled, onTimeout)
-          setiap 2 detik, max 15x (30 detik):
+          every 2 seconds, max 15x (30 seconds):
             GET /api/enrollments/check/:courseId
             ├─→ isEnrolled: true   → clearInterval → router.push /courses/:id ✅
-            └─→ isEnrolled: false  → tunggu webhook isi DB, coba lagi
+            └─→ isEnrolled: false  → wait for the webhook to fill the DB, retry
                     |
-              (setelah 30 detik, webhook tidak sampai)
+              (after 30 seconds, the webhook never arrived)
                     ↓
               isTimedOut = true
-              tampilkan warning + tombol "Cek Status Pembayaran"
+              show a warning + the "Cek Status Pembayaran" button
                     |
-              user klik → manualVerify(orderId)
+              user clicks → manualVerify(orderId)
                     ↓
               GET /api/checkout/verify/:orderId
-              BE tanya langsung ke Midtrans API
+              BE asks the Midtrans API directly
               ├─→ settled → upsert Enrollment → router.push /courses/:id ✅
-              └─→ belum   → tombol aktif kembali, user bisa coba lagi
+              └─→ not yet → button re-enabled, user can retry
 ```
 
 **Snap.js URL:**
@@ -1474,29 +1478,29 @@ User navigates to /courses/:id
 Sandbox   : https://app.sandbox.midtrans.com/snap/snap.js
 Production: https://app.midtrans.com/snap/snap.js
 ```
-> Ganti `src` di `loadSnapScript()` pada `useCheckout.ts` sesuai environment.
+> Swap the `src` in `loadSnapScript()` inside `useCheckout.ts` to match the environment.
 
-**Local Development — Setup Webhook dengan ngrok:**
+**Local Development — Webhook Setup with ngrok:**
 ```bash
 # 1. Install ngrok
 brew install ngrok
 
-# 2. Tambahkan auth token (daftar gratis di ngrok.com)
+# 2. Add your auth token (free signup at ngrok.com)
 ngrok config add-authtoken <your_token>
 
 # 3. Expose BE server
 ngrok http 3000
 # → output: https://xxxx.ngrok-free.app
 
-# 4. Set Notification URL di Midtrans Dashboard
+# 4. Set the Notification URL in the Midtrans Dashboard
 #    Settings → Payment → Notification URL:
 #    https://xxxx.ngrok-free.app/api/checkout/webhook
 ```
-> URL ngrok berubah setiap restart (free plan) — update ulang di Midtrans Dashboard setiap kali ngrok dijalankan ulang.
+> The ngrok URL changes on every restart (free plan) — update it in the Midtrans Dashboard each time you restart ngrok.
 
 **Fallback — Manual Verify (tanpa ngrok):**
 
-`GET /api/checkout/verify/:orderId` — BE aktif tanya status ke Midtrans API langsung, upsert Enrollment jika settled. Berguna saat webhook tidak bisa jangkau localhost.
+`GET /api/checkout/verify/:orderId` — the BE actively asks the Midtrans API for status and upserts Enrollment if settled. Useful when the webhook cannot reach localhost.
 
 **Data Model — Order:**
 ```
@@ -1520,13 +1524,13 @@ enrolledAt → Date
 
 **Course Model Changes:**
 ```
-price → number (harga dalam rupiah, 0 jika isFree)
+price → number (price in rupiah, 0 when isFree)
 ```
 
 **getCourseDetail Changes:**
 ```
 isFree = true           → skip enrollment check, all lessons follow sequential progress
-                          isEnrolled = true (course gratis selalu dianggap enrolled)
+                          isEnrolled = true (a free course always counts as enrolled)
 isFree = false
   └─ not enrolled       → all locked lessons return is_locked: true + isEnrolled: false
   └─ enrolled           → sequential progress logic as before
@@ -1535,16 +1539,16 @@ isFree = false
 
 **Free Course — Enrollment Record:**
 ```
-POST /api/courses/update-progress  (lesson di course isFree: true)
+POST /api/courses/update-progress  (lesson in a course with isFree: true)
           |
           ▼
     BE: upsert Progress record
-    BE: upsert Enrollment (orderId: null) ← dibuat saat progress pertama kali
+    BE: upsert Enrollment (orderId: null) ← created on the first progress event
           |
           ▼
-    Course gratis muncul di "Course Saya" (GET /api/enrollments/my-courses)
+    Free course appears in "My Courses" (GET /api/enrollments/my-courses)
 ```
-> Enrollment untuk course gratis dibuat **lazy** — saat user pertama kali menyelesaikan sebuah lesson. `orderId` null dan tidak perlu Order record.
+> Enrollment for a free course is created **lazily** — the first time the user completes a lesson. `orderId` is null and no Order record is needed.
 
 **BE Tasks:**
 - [x] Update `Course` model — add `price` field
@@ -1552,8 +1556,8 @@ POST /api/courses/update-progress  (lesson di course isFree: true)
 - [x] `Enrollment` model (`userId`, `courseId`, `orderId`, `enrolledAt`) — unique index `[userId, courseId]`
 - [x] `POST /api/checkout/create-order` — validate, reuse pending order or create new, return Snap token
 - [x] `POST /api/checkout/webhook` — **primary**: Midtrans push notification, verify signature, update Order, upsert Enrollment
-- [x] `GET /api/checkout/verify/:orderId` — **fallback**: BE aktif tanya ke Midtrans API, upsert Enrollment jika settled (untuk local dev / tombol "Cek Status")
-- [x] `GET /api/enrollments/check/:courseId` — return `{ isEnrolled: boolean }` — dipolling FE setelah bayar
+- [x] `GET /api/checkout/verify/:orderId` — **fallback**: the BE asks the Midtrans API directly and upserts Enrollment if settled (for local dev / the "Check Status" button)
+- [x] `GET /api/enrollments/check/:courseId` — returns `{ isEnrolled: boolean }` — polled by the FE after payment
 - [x] Update `getCourseDetail` — add enrollment gate + `isEnrolled` in response
 - [x] Register `checkoutRoutes` and `enrollmentRoutes` in `routes/index.ts`
 - [x] Update `courseSeeder` — add `price` field to all courses
@@ -1564,15 +1568,15 @@ POST /api/courses/update-progress  (lesson di course isFree: true)
 - [x] `src/api/checkout.ts` — `createOrder()`, `verifyPayment()` (fallback)
 - [x] `src/api/enrollments.ts` — `checkEnrollment()`
 - [x] `src/composables/checkout/useCheckout.ts` — load snap.js, createOrder mutation, snap.pay callbacks
-- [x] `src/composables/checkout/useEnrollment.ts` — polls `checkEnrollment()` setiap 2s hingga webhook mengisi DB; `onTimeout` callback setelah 30 detik; `manualVerify(orderId)` sebagai fallback ke verify endpoint
-- [x] `CheckoutResultView.vue` — success/pending/error state; polling dengan timeout handler; tampilkan tombol "Cek Status Pembayaran" jika webhook terlambat; redirect ke course setelah enrolled
+- [x] `src/composables/checkout/useEnrollment.ts` — polls `checkEnrollment()` every 2s until the webhook fills the DB; `onTimeout` callback after 30 seconds; `manualVerify(orderId)` as a fallback to the verify endpoint
+- [x] `CheckoutResultView.vue` — success/pending/error state; polling with a timeout handler; shows a "Check Payment Status" button when the webhook is late; redirects to the course once enrolled
 - [x] `CourseCard.vue` — show price badge or "Free" label
 - [x] `CourseDetailView.vue` — show "Beli Kurs" CTA if not enrolled, hide progress actions
 - [x] Add route `/checkout/result` → `CheckoutResultView`
 
 ### Phase 5 — User Profile & Purchase History ✅
 
-> Semua route protected: `requiresAuth: true`. Menggunakan `ProfileLayout.vue` yang menyediakan navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) — mobile pakai pill nav.
+> All routes are protected: `requiresAuth: true`. They use `ProfileLayout.vue`, which provides a navbar + sidebar (My Courses, Profile, Purchase History) — mobile uses pill nav.
 
 #### 5.1 My Courses (Course Saya)
 
@@ -1588,32 +1592,32 @@ User navigates to /my-courses  (requires auth)
     Response: list enrolled courses + completed_lessons per course
           |
           ▼
-    FE: tampilkan card per course
+    FE: render one card per course
         - cover, title, tanggal bergabung
         - progress bar (completed / total_lessons, %)
         - link "Lanjut Belajar" → /courses/:id
 ```
 
-**Data yang dikembalikan per course:**
+**Data returned per course:**
 ```
 enrollment_id     → string
 enrolled_at       → Date
-completed_lessons → number (count dari Progress collection)
+completed_lessons → number (count from the Progress collection)
 course            → { _id, title, cover_url, level, topic_name, total_lessons, ... }
 ```
 > Tidak butuh model baru — query join `Enrollment` + `Progress.countDocuments` + populate `Course`.
 
 **BE Tasks:**
-- [x] `GET /api/enrollments/my-courses` — list enrolled courses + `completed_lessons` per course (dihitung dari Progress)
+- [x] `GET /api/enrollments/my-courses` — list enrolled courses + `completed_lessons` per course (computed from Progress)
 
 **FE Tasks:**
 - [x] `src/types/enrollments.ts` — `MyCourse`, `MyCoursesResponse`
-- [x] `src/api/enrollments.ts` — tambah `getMyCourses()`
+- [x] `src/api/enrollments.ts` — add `getMyCourses()`
 - [x] `src/composables/enrollments/useMyEnrollments.ts` — `useQuery` + `courses` computed
-- [x] `src/utils/format.ts` — tambah `formatDate()`, `progressPercent()`
+- [x] `src/utils/format.ts` — add `formatDate()`, `progressPercent()`
 - [x] `src/views/user/MyCoursesView.vue` — grid card enrolled courses + progress bar
 - [x] Add route `/my-courses` → `MyCoursesView` (requiresAuth, under ProfileLayout)
-- [x] `AppNavbar.vue` — dropdown user menu dengan link "Course Saya"
+- [x] `AppNavbar.vue` — user dropdown menu with a "My Courses" link
 
 ---
 
@@ -1630,7 +1634,7 @@ User navigates to /profile  (requires auth)
     GET /api/users/profile
           |
           ▼
-    FE: tampilkan form edit (nama, avatar URL)
+    FE: render the edit form (name, avatar URL)
           |
     User submit perubahan
           |
@@ -1642,32 +1646,32 @@ User navigates to /profile  (requires auth)
           |
           ▼
     PATCH /api/users/change-password  { currentPassword, newPassword, confirmPassword }
-    BE: validasi currentPassword, skip jika akun Google-only
+    BE: validate currentPassword, skip for Google-only accounts
 ```
 
 **User Model Changes:**
 ```
-avatar_url  → string | null, optional (URL foto profil)
+avatar_url  → string | null, optional (profile photo URL)
 ```
 
 **BE Tasks:**
-- [x] Update `User` model — tambah field `avatar_url?: string`
+- [x] Update `User` model — add field `avatar_url?: string`
 - [x] `GET /api/users/profile` — return user data
 - [x] `PATCH /api/users/profile` — update name + avatar_url (min 2 karakter)
-- [x] `PATCH /api/users/change-password` — validasi currentPassword, hash baru, return 400 jika Google-only
+- [x] `PATCH /api/users/change-password` — validate currentPassword, hash the new one, return 400 for Google-only accounts
 
 **FE Tasks:**
-- [x] `src/types/auth.ts` — tambah `avatar_url` ke `User`, `UpdateProfilePayload`, `ChangePasswordPayload`
+- [x] `src/types/auth.ts` — add `avatar_url` to `User`, `UpdateProfilePayload`, `ChangePasswordPayload`
 - [x] `src/api/users.ts` — `getProfile()`, `updateProfile()`, `changePassword()`
 - [x] `src/composables/user/useProfile.ts` — profile query + updateProfile mutation (sync authStore) + changePassword mutation
-- [x] `src/views/user/ProfileView.vue` — form edit nama + avatar preview + form ganti password
+- [x] `src/views/user/ProfileView.vue` — name edit form + avatar preview + change-password form
 - [x] Add route `/profile` → `ProfileView` (requiresAuth, under ProfileLayout)
 
 ---
 
 #### 5.3 Purchase History (Riwayat Pembelian)
 
-![riwayat payments](docs/riwayat%20pembelian.png)
+![purchase history](docs/riwayat%20pembelian.png)
 
 **Flow:**
 
@@ -1679,12 +1683,12 @@ User navigates to /purchases  (requires auth)
     Response: list orders diurutkan terbaru, populate course title + cover
           |
           ▼
-    FE: tampilkan list order
+    FE: render the order list
         - cover course, judul, tanggal, midtrans_order_id
         - harga + status badge (Berhasil / Menunggu / Gagal / Kedaluwarsa)
 ```
 
-**Data yang dikembalikan per order:**
+**Data returned per order:**
 ```
 _id                → string
 courseId           → { _id, title, cover_url }  (populate)
@@ -1694,36 +1698,36 @@ midtrans_order_id  → string
 paidAt?            → Date
 createdAt          → Date
 ```
-> Tidak butuh model baru — query dari `Order` collection, populate `courseId`.
+> No new model needed — query the `Order` collection and populate `courseId`.
 
 **BE Tasks:**
-- [x] `GET /api/orders/my-orders` — list semua order milik user, populate `courseId` (title + cover_url)
+- [x] `GET /api/orders/my-orders` — list all of the user's orders, populate `courseId` (title + cover_url)
 
 **FE Tasks:**
 - [x] `src/types/orders.ts` — `MyOrder`, `MyOrdersResponse`
 - [x] `src/api/orders.ts` — `getMyOrders()`
 - [x] `src/composables/orders/useOrders.ts` — `useQuery` + `orders` computed
-- [x] `src/views/user/PurchaseHistoryView.vue` — list order dengan status badge + formatRupiah
+- [x] `src/views/user/PurchaseHistoryView.vue` — order list with status badge + formatRupiah
 - [x] Add route `/purchases` → `PurchaseHistoryView` (requiresAuth, under ProfileLayout)
 
 **Shared Layout:**
 - [x] `src/layouts/ProfileLayout.vue` — Navbar + sidebar desktop (sticky, active-class highlight) + pill nav mobile
-- [x] `router/routes/protected.ts` — ProfileLayout sebagai parent, 3 child routes di dalamnya
+- [x] `router/routes/protected.ts` — ProfileLayout as the parent, with 3 child routes inside it
 
 ---
 
 ### Phase 6 — Admin Dashboard
 
-> Role guard: hanya user dengan `role: 'admin'` yang bisa mengakses. Semua route admin di bawah `AdminLayout` dengan sidebar tersendiri.
+> Role guard: only users with `role: 'admin'` may access these. All admin routes sit under `AdminLayout`, which has its own sidebar.
 
-**Fitur yang ditambahkan dibanding Phase 1–5:**
+**What this phase adds on top of Phases 1–5:**
 
-| Gap | Solusi |
+| Gap | Solution |
 |-----|--------|
-| Course langsung live saat dibuat | Tambah field `status: draft \| published` — student hanya lihat `published` |
-| Admin tidak bisa lihat semua transaksi | Halaman order management semua user + filter status |
-| Task auto-approve tanpa review | Admin/instructor bisa approve / reject task submission |
-| Topics tidak bisa dikelola | CRUD topic dari admin panel |
+| Courses went live the moment they were created | Added a `status: draft \| published` field — students only see `published` |
+| Admins could not see every transaction | Order management page across all users + status filter |
+| Tasks were auto-approved without review | Admin/instructor can approve or reject a task submission |
+| Topics could not be managed | Topic CRUD from the admin panel |
 
 ---
 
@@ -1735,18 +1739,18 @@ createdAt          → Date
 User navigates to /admin/*
           |
           ▼
-    Router guard cek role
+    Router guard checks role
           |
-          ├─→ role !== 'admin'   → redirect ke /
-          └─→ role === 'admin'   → lanjut ke halaman admin
+          ├─→ role !== 'admin'   → redirect to /
+          └─→ role === 'admin'   → continue to the admin page
 ```
 
 **FE Tasks:**
 - [x] `src/layouts/AdminLayout.vue` — AppNavbar + sidebar card admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue); mobile pill nav
-- [x] `router/routes/admin.ts` — semua route `/admin/*` dengan guard `requiresAdmin`; placeholder views untuk semua sub-halaman
-- [x] Update router guard di `router/index.ts` — cek `auth.user?.role === 'admin'`
-- [x] `src/types/router.d.ts` — extend `RouteMeta` dengan `requiresAdmin`
-- [x] `src/seeds/adminSeeder.ts` — seed akun admin (`admin@gmail.com` / `123123123`); script `seed:admin`
+- [x] `router/routes/admin.ts` — all `/admin/*` routes with the `requiresAdmin` guard; placeholder views for every sub-page
+- [x] Update the router guard in `router/index.ts` — check `auth.user?.role === 'admin'`
+- [x] `src/types/router.d.ts` — extend `RouteMeta` with `requiresAdmin`
+- [x] `src/seeds/adminSeeder.ts` — seed the admin account (`admin@gmail.com` / `123123123`); script `seed:admin`
 
 ---
 
@@ -1758,25 +1762,25 @@ User navigates to /admin/*
 Admin navigates to /admin/courses
           |
           ▼
-    GET /api/admin/courses  (list semua course, termasuk yang hidden)
+    GET /api/admin/courses  (list all courses, including hidden ones)
           |
           ▼
-    Admin klik "Tambah Course"
+    Admin clicks "Tambah Course"
           |
           ▼
     POST /api/admin/courses  { title, description, cover_url, topic, level, isFree, price }
           |
-    Admin klik "Edit"
+    Admin clicks "Edit"
           |
           ▼
     PATCH /api/admin/courses/:id
           |
-    Admin klik "Hapus"
+    Admin clicks "Hapus"
           |
           ▼
     DELETE /api/admin/courses/:id
           |
-    Admin kelola Module → Chapter → Lesson
+    Admin manages Module → Chapter → Lesson
           |
           ▼
     POST /api/admin/courses/:id/modules
@@ -1790,10 +1794,10 @@ Admin navigates to /admin/courses
 ```
 status  → 'draft' | 'published'  (default: 'draft')
 ```
-> `GET /api/courses` (public) hanya return course dengan `status: 'published'`. Admin bisa lihat semua termasuk draft.
-> **Migration**: jalankan `db.courses.updateMany({status:{$exists:false}}, {$set:{status:'published'}})` sekali setelah deploy — semua course seeded tetap tampil di student view.
+> `GET /api/courses` (public) only returns courses with `status: 'published'`. Admins see everything, including drafts.
+> **Migration**: run `db.courses.updateMany({status:{$exists:false}}, {$set:{status:'published'}})` once after deploying — every seeded course stays visible in the student view.
 
-**Data yang bisa dikelola per Lesson:**
+**Fields manageable per Lesson:**
 ```
 title         → string
 type          → video | quiz | task
@@ -1802,42 +1806,42 @@ duration      → number (seconds)
 video_url     → string | null
 description   → string
 is_locked     → boolean (free preview flag)
-passing_score → number (untuk tipe quiz)
+passing_score → number (for quiz type)
 ```
 
 **BE Tasks:**
-- [x] `adminMiddleware.ts` — cek `req.userId` punya `role: 'admin'`
-- [x] Update `Course` model — tambah field `status: 'draft' | 'published'` (default `'draft'`)
-- [x] Update `GET /api/courses` (public) — filter hanya `status: 'published'`
-- [x] `GET /api/admin/courses` — list semua course (draft + published) + total_lessons + total_students
-- [x] `GET /api/admin/courses/:id` — detail course lengkap dengan modules → chapters → lessons (untuk pre-fill form edit + `CourseContentView`)
+- [x] `adminMiddleware.ts` — check that `req.userId` has `role: 'admin'`
+- [x] Update `Course` model — add field `status: 'draft' | 'published'` (default `'draft'`)
+- [x] Update `GET /api/courses` (public) — filter to `status: 'published'` only
+- [x] `GET /api/admin/courses` — list all courses (draft + published) + total_lessons + total_students
+- [x] `GET /api/admin/courses/:id` — full course detail with modules → chapters → lessons (for edit-form pre-fill + `CourseContentView`)
 - [x] `POST /api/admin/courses` — create course (default status: draft)
-- [x] `PATCH /api/admin/courses/:id` — update course termasuk publish/unpublish
+- [x] `PATCH /api/admin/courses/:id` — update course including publish/unpublish
 - [x] `DELETE /api/admin/courses/:id` — delete course + cascade: Module, Chapter, Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by courseId)
-- [x] `POST /api/admin/courses/:id/modules` — tambah module
+- [x] `POST /api/admin/courses/:id/modules` — add module
 - [x] `PATCH /api/admin/modules/:id` — edit module
 - [x] `DELETE /api/admin/modules/:id` — delete module + cascade: Chapter, Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by moduleId/related lessons)
-- [x] `POST /api/admin/modules/:id/chapters` — tambah chapter
+- [x] `POST /api/admin/modules/:id/chapters` — add chapter
 - [x] `PATCH /api/admin/chapters/:id` — edit chapter
 - [x] `DELETE /api/admin/chapters/:id` — delete chapter + cascade: Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission (by chapterId/related lessons)
-- [x] `POST /api/admin/chapters/:id/lessons` — tambah lesson
+- [x] `POST /api/admin/chapters/:id/lessons` — add lesson
 - [x] `PATCH /api/admin/lessons/:id` — edit lesson
 - [x] `DELETE /api/admin/lessons/:id` — delete lesson + cascade: QuizQuestion, QuizAttempt, Progress, TaskSubmission (by lessonId)
-- [x] `GET /api/admin/topics` — list semua topic dari koleksi Topic
-- [x] `POST /api/admin/topics` — tambah topic baru (validasi format slug; 409 jika slug sudah ada)
-- [x] `PATCH /api/admin/topics/:id` — update slug/nama; sync `topic` + `topic_name` di semua course yang pakai slug lama
-- [x] `DELETE /api/admin/topics/:id` — hapus topic (diblokir jika masih ada course yang menggunakan slug ini)
+- [x] `GET /api/admin/topics` — list all topics from the Topic collection
+- [x] `POST /api/admin/topics` — add a new topic (slug format validated; 409 if the slug already exists)
+- [x] `PATCH /api/admin/topics/:id` — update slug/name; syncs `topic` + `topic_name` across every course using the old slug
+- [x] `DELETE /api/admin/topics/:id` — delete topic (blocked while any course still uses this slug)
 
 **FE Tasks:**
 - [x] `src/api/admin/courses.ts` — TypeScript interfaces (AdminCourse, AdminLesson, dll.) + CRUD course + module + chapter + lesson + publish toggle
 - [x] `src/composables/admin/useCourseList.ts` — course list query + togglePublish mutation + confirmDelete
 - [x] `src/composables/admin/useCourseForm.ts` — create/edit course mutations + pre-fill query
 - [x] `src/composables/admin/useCourseContent.ts` — course detail query + invalidate helper
-- [x] `src/composables/admin/useCourseEditor.ts` — expand state (auto-expand on load, collapse/expand all) + semua CRUD mutations module/chapter/lesson
-- [x] `src/views/admin/courses/CourseListView.vue` — tabel course + status badge (Draft/Published) + toggle publish + tombol Konten/Edit/Hapus
-- [x] `src/views/admin/courses/CourseFormView.vue` — form create/edit course; topic berupa dropdown dari Topics API (bukan input bebas); `topic_name` di-resolve BE secara otomatis dari slug yang dipilih
-- [x] `src/views/admin/courses/CourseContentView.vue` — tree outline editor (MS Word style): modul → bab → lesson dengan nomor hierarki (1, 1.1, 1.1.1); ikon per tipe (video/quiz/task); inline edit on hover; klik ikon PlayCircle → modal preview video (YouTube embed); klik ikon CircleHelp → inline QuizEditorPanel; tombol collapse/expand per modul + global Buka Semua / Tutup Semua
-- [x] `src/views/admin/topics/TopicListView.vue` — tabel topic (slug badge + nama); tambah form expand di atas; inline edit row dengan confirm/cancel; hapus diblokir jika slug masih dipakai course
+- [x] `src/composables/admin/useCourseEditor.ts` — expand state (auto-expand on load, collapse/expand all) + all module/chapter/lesson CRUD mutations
+- [x] `src/views/admin/courses/CourseListView.vue` — course table + status badge (Draft/Published) + publish toggle + Konten/Edit/Hapus buttons
+- [x] `src/views/admin/courses/CourseFormView.vue` — create/edit course form; topic is a dropdown fed by the Topics API (not free text); `topic_name` is resolved automatically by the BE from the chosen slug
+- [x] `src/views/admin/courses/CourseContentView.vue` — tree outline editor (MS Word style): module → chapter → lesson with hierarchical numbering (1, 1.1, 1.1.1); per-type icons (video/quiz/task); inline edit on hover; click the PlayCircle icon → video preview modal (YouTube embed); click the CircleHelp icon → inline QuizEditorPanel; per-module collapse/expand buttons + global Expand All / Collapse All
+- [x] `src/views/admin/topics/TopicListView.vue` — topic table (slug badge + name); expanding add form on top; inline row edit with confirm/cancel; delete blocked while the slug is still used by a course
 
 ---
 
@@ -1852,16 +1856,16 @@ Admin navigates to /admin/courses/:id/content
     CourseContentView: tree outline modul → bab → lesson
           |
           ▼
-    Admin klik ikon CircleHelp (quiz) di baris lesson
+    Admin clicks the CircleHelp (quiz) icon on a lesson row
           |
           ▼
-    Panel QuizEditorPanel muncul di bawah baris lesson (inline)
+    QuizEditorPanel appears below the lesson row (inline)
           |
           ▼
-    GET /api/admin/quiz/:lessonId/questions  (dengan correct_index — admin only)
+    GET /api/admin/quiz/:lessonId/questions  (with correct_index — admin only)
           |
           ▼
-    Admin tambah / edit / hapus soal — CRUD inline tanpa pindah halaman
+    Admin adds / edits / deletes questions — inline CRUD without leaving the page
           |
           ▼
     POST   /api/admin/quiz/:lessonId/questions   { question, options[], correct_index }
@@ -1869,21 +1873,21 @@ Admin navigates to /admin/courses/:id/content
     DELETE /api/admin/quiz/questions/:questionId
 ```
 
-> Quiz management dilakukan **inline** di dalam `CourseContentView`, bukan di halaman terpisah. Klik ikon quiz atau tombol chevron di hover area untuk membuka panel soal.
+> Quiz management happens **inline** inside `CourseContentView`, not on a separate page. Click the quiz icon or the chevron button in the hover area to open the question panel.
 
 **BE Tasks:**
-- [x] `GET /api/admin/quiz/:lessonId/questions` — return questions **dengan** `correct_index`
-- [x] `POST /api/admin/quiz/:lessonId/questions` — tambah soal
-- [x] `PATCH /api/admin/quiz/questions/:questionId` — edit soal
-- [x] `DELETE /api/admin/quiz/questions/:questionId` — hapus soal
-- [x] `quizAdminRoutes.ts` — semua route dilindungi `protect + adminOnly`
-- [x] Daftarkan di `routes/index.ts` → `router.use('/admin/quiz', quizAdminRoutes)`
+- [x] `GET /api/admin/quiz/:lessonId/questions` — return questions **with** `correct_index`
+- [x] `POST /api/admin/quiz/:lessonId/questions` — add question
+- [x] `PATCH /api/admin/quiz/questions/:questionId` — edit question
+- [x] `DELETE /api/admin/quiz/questions/:questionId` — delete question
+- [x] `quizAdminRoutes.ts` — every route guarded by `protect + adminOnly`
+- [x] Register in `routes/index.ts` → `router.use('/admin/quiz', quizAdminRoutes)`
 
 **FE Tasks:**
 - [x] `src/api/admin/quiz.ts` — `AdminQuizQuestion` interface + CRUD API calls
-- [x] `src/composables/admin/useQuizEditor.ts` — `useQuery` soal + `useMutation` add/save/delete + `showAddForm` state
-- [x] `src/components/admin/QuizEditorPanel.vue` — panel inline: daftar soal (numbered, jawaban benar highlight hijau) + form edit + form tambah (toggle)
-- [x] `CourseContentView.vue` — klik ikon CircleHelp atau chevron ungu di hover area → toggle `expandedQuizzes`; `QuizEditorPanel` muncul di bawah baris lesson ketika expanded
+- [x] `src/composables/admin/useQuizEditor.ts` — `useQuery` for questions + `useMutation` add/save/delete + `showAddForm` state
+- [x] `src/components/admin/QuizEditorPanel.vue` — inline panel: question list (numbered, correct answer highlighted green) + edit form + add form (toggle)
+- [x] `CourseContentView.vue` — click the CircleHelp icon or the purple chevron in the hover area → toggles `expandedQuizzes`; `QuizEditorPanel` appears below the lesson row when expanded
 
 ---
 
@@ -1898,23 +1902,23 @@ Admin navigates to /admin/users
     GET /api/admin/users  (pagination + search by name/email)
           |
           ▼
-    Admin klik user → lihat detail (enrollment list, order history, total spent)
+    Admin clicks a user → view detail (enrollment list, order history, total spent)
           |
-          └─→ Admin ubah role
+          └─→ Admin changes role
                     ▼
               PATCH /api/admin/users/:id/role  { role: 'admin' | 'student' }
 ```
 
 **BE Tasks:**
-- [x] `GET /api/admin/users` — list semua user; pagination + regex search by name/email; select field aman (tanpa password/otp)
-- [x] `GET /api/admin/users/:id` — detail user + enrollments (populate courseId) + orders (populate courseId) + `total_spent` (sum amount order berstatus 'paid')
-- [x] `PATCH /api/admin/users/:id/role` — ubah role; validasi enum; blokir admin mengubah role dirinya sendiri
+- [x] `GET /api/admin/users` — list all users; pagination + regex search by name/email; safe field selection (no password/otp)
+- [x] `GET /api/admin/users/:id` — user detail + enrollments (populate courseId) + orders (populate courseId) + `total_spent` (sum of amounts on orders with status 'paid')
+- [x] `PATCH /api/admin/users/:id/role` — change role; validate enum; block an admin from changing their own role
 
 **FE Tasks:**
 - [x] `src/api/admin/users.ts` — interface `AdminUser`, `AdminUserDetail`, `AdminUserEnrollment`, `AdminUserOrder` + `adminListUsers` / `adminGetUser` / `adminUpdateUserRole`
-- [x] `src/composables/admin/useUserList.ts` — list query dengan computed queryKey (search + page) + debounce search + `changeRole` mutation
-- [x] `src/views/admin/users/UserListView.vue` — tabel user + avatar inisial (fallback jika tanpa foto) + search bar (debounce 350ms) + role dropdown inline + status badge Verified/Unverified + pagination
-- [x] `src/views/admin/users/UserDetailView.vue` — user card (avatar, nama, email, role picker, join date, total pembelian); section enrolled courses (cover + judul + topik + tanggal); section riwayat order (judul + midtrans ID + harga + status badge)
+- [x] `src/composables/admin/useUserList.ts` — list query with a computed queryKey (search + page) + debounced search + `changeRole` mutation
+- [x] `src/views/admin/users/UserListView.vue` — user table + initials avatar (fallback when there is no photo) + search bar (350ms debounce) + inline role dropdown + Verified/Unverified status badge + pagination
+- [x] `src/views/admin/users/UserDetailView.vue` — user card (avatar, name, email, role picker, join date, total spent); enrolled courses section (cover + title + topic + date); order history section (title + midtrans ID + price + status badge)
 
 ---
 
@@ -1927,38 +1931,38 @@ Admin navigates to /admin/bootcamps
           |
           ▼
     CRUD BootcampPackage → BootcampBatch → BootcampSession
-    Mentors dipilih dari user dengan role 'mentor' (bukan embedded string)
+    Mentors are picked from users with role 'mentor' (not embedded strings)
 ```
 
 **BE Tasks:**
-- [x] Update `User` model — tambah `'mentor'` ke enum `role`
-- [x] Update `BootcampPackage` model — `mentors[]` berubah dari embedded string (name, image_url) menjadi ref ke User (`userId` + `occupation`)
-- [x] `GET /api/admin/bootcamps` — list semua package + batch_count; populate `mentors.userId`
+- [x] Update `User` model — add `'mentor'` to the `role` enum
+- [x] Update `BootcampPackage` model — `mentors[]` changed from embedded strings (name, image_url) to a User ref (`userId` + `occupation`)
+- [x] `GET /api/admin/bootcamps` — list all packages + batch_count; populate `mentors.userId`
 - [x] `GET /api/admin/bootcamps/:id` — detail package + batches + sessions; populate `mentors.userId` (name, avatar_url)
-- [x] `GET /api/admin/bootcamps/mentors` — list semua user dengan `role: 'mentor'` (dipakai FE untuk mentor picker) — **harus sebelum `/:id` di router**
+- [x] `GET /api/admin/bootcamps/mentors` — list all users with `role: 'mentor'` (used by the FE mentor picker) — **must be declared before `/:id` in the router**
 - [x] `POST /api/admin/bootcamps` — create package
-- [x] `PATCH /api/admin/bootcamps/:id` — edit package; populate `mentors.userId` di response
+- [x] `PATCH /api/admin/bootcamps/:id` — edit package; populate `mentors.userId` in the response
 - [x] `DELETE /api/admin/bootcamps/:id` — delete package + cascade: BootcampBatch, BootcampSession
-- [x] `POST /api/admin/bootcamps/:id/batches` — tambah batch
+- [x] `POST /api/admin/bootcamps/:id/batches` — add batch
 - [x] `PATCH /api/admin/bootcamps/batches/:id` — edit batch
 - [x] `DELETE /api/admin/bootcamps/batches/:id` — delete batch + cascade: BootcampSession
-- [x] `POST /api/admin/bootcamps/batches/:id/sessions` — tambah session
+- [x] `POST /api/admin/bootcamps/batches/:id/sessions` — add session
 - [x] `PATCH /api/admin/bootcamps/sessions/:id` — edit session
 - [x] `DELETE /api/admin/bootcamps/sessions/:id` — delete session
-- [x] Seed script `npm run seed:mentors` — upsert 5 mentor user (idempotent, pakai `$setOnInsert`)
-- [x] Update `bootcampSeeder.ts` — query mentor user by email, fail fast jika tidak ada; pakai `{ userId, occupation }` bukan `{ name, image_url }`
-- [ ] `GET /api/admin/batches/:id/enrollments` — list peserta yang enrolled di batch ini (Phase 7)
+- [x] Seed script `npm run seed:mentors` — upsert 5 mentor users (idempotent, using `$setOnInsert`)
+- [x] Update `bootcampSeeder.ts` — query mentor users by email, fail fast when missing; use `{ userId, occupation }` instead of `{ name, image_url }`
+- [ ] `GET /api/admin/batches/:id/enrollments` — list students enrolled in this batch (Phase 7)
 
 **FE Tasks:**
-- [x] `src/api/admin/bootcamps.ts` — `MentorUser` (populated), `AdminMentor` (userId: MentorUser), `AdminMentorPayload` (userId: string), `PackagePayload.mentors: AdminMentorPayload[]`; tambah `adminListMentors()`
+- [x] `src/api/admin/bootcamps.ts` — `MentorUser` (populated), `AdminMentor` (userId: MentorUser), `AdminMentorPayload` (userId: string), `PackagePayload.mentors: AdminMentorPayload[]`; add `adminListMentors()`
 - [x] `src/composables/admin/useBootcampList.ts` — list query + confirmDelete
-- [x] `src/composables/admin/useBootcampForm.ts` — create/edit mutations + pre-fill (konversi `m.userId._id` → string) + `availableMentors` query; fungsi `toggleMentor`, `isMentorSelected`, `updateOccupation`, `getMentorPayload`
+- [x] `src/composables/admin/useBootcampForm.ts` — create/edit mutations + pre-fill (converts `m.userId._id` → string) + `availableMentors` query; `toggleMentor`, `isMentorSelected`, `updateOccupation`, `getMentorPayload` functions
 - [x] `src/composables/admin/useBootcampContent.ts` — package detail query + invalidate helper
 - [x] `src/composables/admin/useBootcampEditor.ts` — expand state (expandedBatches + toggleBatch + expandAll + collapseAll) + CRUD batch + session mutations
-- [x] `src/views/admin/bootcamps/BootcampListView.vue` — tabel package + status badge + tombol Konten/Edit/Hapus
-- [x] `src/views/admin/bootcamps/BootcampFormView.vue` — form create/edit; mentor picker: daftar user mentor dengan toggle pilih (UserCheck/UserX) + input occupation per mentor yang dipilih
-- [x] `src/views/admin/bootcamps/BootcampContentView.vue` — card-based editor: mentor strip di atas; batch cards (klik header untuk expand, chevron indikator, type badge, quota bar); session rows dengan nomor badge + nama + date+time chip; form tambah sesi sebagai card expand (bukan inline grid)
-- [ ] `src/views/admin/bootcamps/BootcampEnrollmentsView.vue` — list peserta per batch + tombol revoke (Phase 7)
+- [x] `src/views/admin/bootcamps/BootcampListView.vue` — package table + status badge + Konten/Edit/Hapus buttons
+- [x] `src/views/admin/bootcamps/BootcampFormView.vue` — create/edit form; mentor picker: list of mentor users with a select toggle (UserCheck/UserX) + an occupation input per selected mentor
+- [x] `src/views/admin/bootcamps/BootcampContentView.vue` — card-based editor: mentor strip on top; batch cards (click the header to expand, chevron indicator, type badge, quota bar); session rows with number badge + name + date+time chip; add-session form as an expanding card (not an inline grid)
+- [ ] `src/views/admin/bootcamps/BootcampEnrollmentsView.vue` — per-batch student list + revoke button (Phase 7)
 
 ---
 
@@ -1971,28 +1975,28 @@ Admin navigates to /admin/orders
           |
           ▼
     GET /api/admin/orders  (pagination + filter by status + search by order_id/user)
-    Response: list semua order dari semua user, populate user + course
+    Response: every order from every user, populate user + course
           |
           ▼
-    FE: tabel order — nama user, nama course, harga, status, tanggal
+    FE: order table — user name, course name, price, status, date
         + filter pill: All / Paid / Pending / Failed / Expired
           |
-          └─→ Admin klik order yang stuck (user sudah bayar tapi status masih pending)
+          └─→ Admin clicks a stuck order (user already paid but status is still pending)
                     ▼
               PATCH /api/admin/orders/:id/mark-paid
               → set status: 'paid', paidAt: now
-              → upsert Enrollment (userId + courseId dari order)
+              → upsert Enrollment (userId + courseId from the order)
               → FE: invalidate order list
 ```
 
-> Use case: webhook Midtrans gagal total dan user sudah transfer manual atau konfirmasi lewat CS.
+> Use case: the Midtrans webhook failed entirely and the user already transferred manually or confirmed through customer support.
 
 **BE Tasks:**
-- [ ] `GET /api/admin/orders` — list semua order (semua user), pagination + filter `?status=` + search
+- [ ] `GET /api/admin/orders` — list all orders (all users), pagination + `?status=` filter + search
 - [ ] `PATCH /api/admin/orders/:id/mark-paid` — set status `'paid'`, paidAt now, upsert Enrollment
 
 **FE Tasks:**
-- [ ] `src/views/admin/orders/OrderListView.vue` — tabel order semua user + filter status + tombol "Mark as Paid" untuk order berstatus pending
+- [ ] `src/views/admin/orders/OrderListView.vue` — order table across all users + status filter + a "Mark as Paid" button for pending orders
 
 ---
 
@@ -2004,46 +2008,46 @@ Admin navigates to /admin/orders
 Admin navigates to /admin/tasks
           |
           ▼
-    GET /api/admin/tasks  (list semua submission, filter by status: pending/approved/rejected)
+    GET /api/admin/tasks  (list all submissions, filter by status: pending/approved/rejected)
           |
           ▼
-    Admin klik submission → lihat URL + note
+    Admin clicks a submission → view URL + note
           |
-          ├─→ Admin klik "Approve"
+          ├─→ Admin clicks "Approve"
           |         ▼
           |   PATCH /api/admin/tasks/:submissionId  { status: 'approved' }
           |   → upsert Progress record → lesson is_done ✓, lesson berikutnya terbuka
           |
-          └─→ Admin klik "Reject"
+          └─→ Admin clicks "Reject"
                     ▼
               PATCH /api/admin/tasks/:submissionId  { status: 'rejected', feedback? }
-              → delete Progress record (jika ada) → lesson kembali belum selesai
-              → FE student: TaskPlayer tampilkan badge Ditolak + feedback admin; perlu submit ulang
+              → delete the Progress record (if any) → the lesson becomes incomplete again
+              → FE student: TaskPlayer shows the Ditolak badge + admin feedback; a resubmission is required
 ```
 
 **TaskSubmission Model Changes:**
 ```
-status    → 'submitted' | 'approved' | 'rejected'  (dari sebelumnya hanya 'submitted')
-feedback  → string | null  (komentar admin saat reject, opsional)
+status    → 'submitted' | 'approved' | 'rejected'  (previously 'submitted' only)
+feedback  → string | null  (optional admin comment on reject)
 ```
 
 **BE Tasks:**
-- [x] Update `TaskSubmission` model — tambah nilai `'approved'` dan `'rejected'` ke enum `status`, tambah `feedback: string | null`
-- [x] Update `POST /api/tasks/:lessonId/submit` — status default `'submitted'`; Progress **tidak** dibuat otomatis — dibuat admin saat approve
-- [x] `GET /api/admin/tasks` — list semua submission, filter `?status=`, pagination; populate `userId` (name, email, avatar_url) + `lessonId` (title, type) + `courseId` (title)
+- [x] Update `TaskSubmission` model — add `'approved'` and `'rejected'` to the `status` enum, add `feedback: string | null`
+- [x] Update `POST /api/tasks/:lessonId/submit` — default status `'submitted'`; Progress is **not** created automatically — the admin creates it on approve
+- [x] `GET /api/admin/tasks` — list all submissions, filter `?status=`, pagination; populate `userId` (name, email, avatar_url) + `lessonId` (title, type) + `courseId` (title)
 - [x] `PATCH /api/admin/tasks/:submissionId` — `approved` → upsert Progress; `rejected` → delete Progress + set feedback
-- [x] `taskAdminRoutes.ts` — semua route dilindungi `protect + adminOnly`; daftarkan di `routes/index.ts`
+- [x] `taskAdminRoutes.ts` — every route guarded by `protect + adminOnly`; register in `routes/index.ts`
 
 **FE Tasks:**
-- [x] Update `src/types/quiz.ts` — `TaskSubmission.status` sekarang `'submitted' | 'approved' | 'rejected'`; tambah field `feedback: string | null`
-- [x] Update `TaskPlayer.vue` — tampilkan UI per status: ✅ Disetujui (hijau), ❌ Ditolak (merah + feedback box admin), 📎 Menunggu Review (kuning)
+- [x] Update `src/types/quiz.ts` — `TaskSubmission.status` is now `'submitted' | 'approved' | 'rejected'`; add field `feedback: string | null`
+- [x] Update `TaskPlayer.vue` — render UI per status: ✅ Approved (green), ❌ Rejected (red + admin feedback box), 📎 Awaiting Review (yellow)
 - [x] `src/api/admin/tasks.ts` — `AdminTaskSubmission` interface + `adminListSubmissions` / `adminReviewSubmission`
 - [x] `src/composables/admin/useTaskReview.ts` — list query (statusFilter + page) + `approve` / `startReject` / `cancelReject` / `submitReject` mutations + `rejectingId` / `feedbackText` state
-- [x] `src/views/admin/tasks/TaskListView.vue` — tabel submission + filter pills (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui/Tolak + form reject expand inline per baris + pagination
+- [x] `src/views/admin/tasks/TaskListView.vue` — submission table + filter pills (All/Pending/Approved/Rejected) + Approve/Reject buttons + inline expanding reject form per row + pagination
 
 ---
 
-#### 6.8 Dashboard Stats
+#### 6.8 Dashboard Stats ✅
 
 **Flow:**
 
@@ -2051,19 +2055,49 @@ feedback  → string | null  (komentar admin saat reject, opsional)
 Admin navigates to /admin
           |
           ▼
-    GET /api/admin/stats
-    Response: { totalUsers, totalCourses, totalEnrollments, totalRevenue, recentOrders[] }
+    GET /api/admin/dashboard/stats
+          |
+          ▼
+    Six independent reads run in parallel via Promise.all:
+      User.countDocuments        → total + new this month
+      Course.countDocuments      → published + draft
+      Enrollment.countDocuments  → total
+      Order aggregate (sum)      → revenue all time + this month
+      Order.find (limit 5)       → most recent paid orders
 ```
 
+**Returned data:**
+```
+users.total          → number
+users.newThisMonth   → number (createdAt >= start of current month, WIB)
+courses.published    → number
+courses.draft        → number
+enrollments.total    → number
+revenue.allTime      → number (sum amount where status: 'paid')
+revenue.thisMonth    → number
+recentOrders[]       → 5 most recent paid orders, sorted by paidAt desc
+  └ _id              → string
+  └ amount           → number
+  └ paidAt           → string | null
+  └ user             → { _id, name, email, avatar_url }
+  └ course           → { _id, title, cover_url }
+```
+> If a course or user was deleted after the order was created, the order is still
+> returned with a placeholder label and `_id: null` rather than being dropped.
+> Removing it would make this table contradict the revenue totals on the same page.
+
 **BE Tasks:**
-- [ ] `GET /api/admin/stats` — aggregate: count User, Course (published), Enrollment, sum paid Order.amount, 5 order terbaru
+- [x] `src/controllers/admin/dashboardAdminController.ts` — `getDashboardStats`; counts and sums computed in the database, never by loading orders into memory
+- [x] `src/routes/admin/dashboardAdminRoutes.ts` — mounted at `/api/admin/dashboard`, chained `protect` + `adminOnly`
 
 **FE Tasks:**
-- [ ] `src/views/admin/DashboardView.vue` — 4 stat card (Users, Courses, Enrollments, Revenue) + tabel 5 order terbaru
+- [x] `src/api/admin/dashboard.ts` — `AdminDashboardStats` / `AdminRecentOrder` interfaces + `adminGetDashboardStats`
+- [x] `src/composables/admin/useDashboardStats.ts` — single useQuery, no local state
+- [x] `src/views/admin/AdminDashboardView.vue` — 4 stat cards (Users, Courses, Enrollments, Revenue) + recent transactions table
 
 ---
 
-#### 6.9 Revenue Report
+#### 6.9 Revenue Report ✅
 
 **Flow:**
 
@@ -2071,50 +2105,71 @@ Admin navigates to /admin
 Admin navigates to /admin/revenue
           |
           ▼
-    GET /api/admin/revenue?from=2024-01-01&to=2024-12-31
-    Response:
-      total_revenue          → number (all time paid orders)
-      revenue_this_month     → number
-      revenue_last_month     → number
-      revenue_by_month[]     → [{ month: "2024-01", total: 1500000 }, ...]
-      revenue_by_course[]    → [{ courseId, title, cover_url, total, count }, ...]
-      success_rate           → number (% order paid vs semua order)
+    GET /api/admin/dashboard/revenue?year=2026
+          |
+          ├─→ year missing or invalid → falls back to the current year (no error)
           |
           ▼
-    FE: tampilkan
-        - 3 stat card (total, bulan ini, bulan lalu)
-        - Bar/line chart — revenue per bulan (dari revenue_by_month)
-        - Tabel course terlaris (dari revenue_by_course)
-        - Badge success rate
+    Four aggregations run in parallel on the Order collection
+          |
+          ▼
+    Months with no sales are back-filled with zero, so series is always 12 items
+          |
+          ▼
+    FE renders
+        - 4 stat cards (total, paid orders, average order, conversion)
+        - CSS bar chart — revenue per month
+        - Top-earning courses table
+        - Year picker built from availableYears
 ```
 
-**Data yang dikembalikan:**
+**Returned data:**
 ```
-total_revenue       → sum amount where status: 'paid' (sesuai filter tanggal)
-revenue_this_month  → sum amount bulan berjalan
-revenue_last_month  → sum amount bulan sebelumnya
-revenue_by_month[]  → aggregate group by year-month, sorted ascending
-  └ month           → string "YYYY-MM"
+year                → number (the year actually reported on)
+availableYears[]    → number[] — years that have paid orders, current year always included
+series[]            → always 12 items, ascending, zero-filled
+  └ period          → string "YYYY-MM"
   └ total           → number
-  └ count           → number (jumlah transaksi)
-revenue_by_course[] → aggregate group by courseId, sorted by total desc
+  └ orders          → number
+topCourses[]        → top 5 by revenue, descending
   └ courseId        → string
-  └ title           → string (populate)
-  └ cover_url       → string (populate)
-  └ total           → number (total revenue dari course ini)
-  └ count           → number (jumlah pembelian)
-success_rate        → (paid orders / total orders) * 100
+  └ title           → string ($lookup; falls back to a placeholder if deleted)
+  └ cover_url       → string | null
+  └ revenue         → number
+  └ sold            → number
+summary.total          → number (sum amount where status: 'paid', within the year)
+summary.paidOrders     → number
+summary.avgOrderValue  → number (rounded)
+summary.conversionRate → number 0..1, paid ÷ orders created that year
+summary.ordersByStatus → { pending?, paid?, failed?, expired? }
 ```
-> Semua dari satu MongoDB aggregation pipeline di `Order` collection — tidak butuh model baru.
+
+Three details that are easy to get wrong and are handled explicitly:
+
+| Pitfall | Handling |
+|---------|----------|
+| MongoDB stores UTC, so a payment at 06:00 WIB on the 1st lands in the previous month | Every `$dateToString` / `$year` passes `timezone: 'Asia/Jakarta'`; range bounds are built from WIB wall-clock time (fixed UTC+7, no DST) |
+| Aggregation omits months with no sales, making the chart skip months | Backend back-fills all 12 months with zero before responding |
+| Existing index `{ userId, courseId, status }` does not serve a `status` + `paidAt` range scan | Added `{ status: 1, paidAt: -1 }` to `Order` |
+
+> Grouping uses `paidAt`, not `createdAt` — revenue is only real once payment clears.
+> Conversion rate is the exception: it is based on `createdAt`, because pending orders have no `paidAt`.
+> `amount` is the price locked in at order time, so past reports stay accurate after a price change.
+
+⚠️ **Scope:** course sales only. `Order` has no `bootcampId` and the checkout flow never
+touches the bootcamp models, so no bootcamp revenue exists to report yet — see Phase 7.1.
 
 **BE Tasks:**
-- [ ] `GET /api/admin/revenue` — aggregation pipeline: group by month + group by course, support `?from=` & `?to=` date filter
+- [x] `GET /api/admin/dashboard/revenue` — four parallel aggregations: monthly series, top courses (`$lookup` into `courses`), yearly summary, status breakdown
+- [x] `src/models/Order.ts` — added index `{ status: 1, paidAt: -1 }` for the report queries
 
 **FE Tasks:**
-- [ ] Install `chart.js` + `vue-chartjs` — untuk bar/line chart revenue per bulan
-- [ ] `src/api/admin/revenue.ts` — `getRevenue(from?, to?)`
-- [ ] `src/composables/admin/useRevenue.ts` — useQuery + date range filter state
-- [ ] `src/views/admin/revenue/RevenueView.vue` — stat cards + chart + tabel course terlaris + date range picker
+- [x] `src/api/admin/dashboard.ts` — `AdminRevenueReport` / `RevenuePoint` / `RevenueTopCourse` interfaces + `adminGetRevenueReport`
+- [x] `src/composables/admin/useRevenueReport.ts` — useQuery keyed by year, `placeholderData` keeps the previous year on screen while the new one loads, bar heights computed as a percentage of the peak month
+- [x] `src/views/admin/revenue/RevenueView.vue` — stat cards + bar chart + top courses table + year picker
+
+> No charting library was added. Twelve monthly bars are plain flexbox `div`s sized by
+> percentage height, which keeps the bundle unchanged for a single page.
 
 ---
 
@@ -2129,79 +2184,79 @@ User navigates to /bootcamps/:id
           |
           ▼
     GET /api/bootcamps/:id
-    Response: { ...packageData, isEnrolled: boolean (cek apakah user sudah enrolled di salah satu batch) }
+    Response: { ...packageData, isEnrolled: boolean (checks whether the user is already enrolled in any batch) }
           |
           ▼
-    User klik "Register Now" → modal terbuka (batch info + harga)
+    User clicks "Register Now" → modal opens (batch info + price)
           |
           ▼
-    User klik "Bayar Sekarang"
+    User clicks "Bayar Sekarang"
           |
           ▼
     POST /api/checkout/bootcamp/create-order  { batchId }
-    ├─→ batch tidak ditemukan   → 404
-    ├─→ sudah enrolled di batch → 409
+    ├─→ batch not found        → 404
+    ├─→ already enrolled       → 409
     ├─→ ada pending order       → reuse snap_token
     └─→ buat BootcampOrder baru (status: 'pending') + generate Snap token
           |
           ▼
     FE: window.snap.pay(snap_token, callbacks)
           |
-    User bayar
+    User pays
           |
           ▼
     ┌─────────────────────────────────────────────────┐
-    │  Dua path berjalan paralel                       │
+    │  Two paths run in parallel                       │
     └─────────────────────────────────────────────────┘
           ↓                              ↓
     Snap callback (FE)            Midtrans POST webhook (server-to-server)
-    router.push ke                POST /api/checkout/bootcamp/webhook
+    router.push to                POST /api/checkout/bootcamp/webhook
     /checkout/bootcamp/result     1. Verifikasi SHA512 signature_key
     ?order_id=&batch_id=          2. BootcampOrder.status = 'paid', paidAt = now
     &result=success               3. BootcampEnrollment.findOneAndUpdate (upsert)
           ↓
     CheckoutBootcampResultView.vue
-    polling GET /api/bootcamps/enrollments/check/:batchId setiap 2s
-    ├─→ isEnrolled: true  → redirect ke /bootcamps/:packageId ✅
+    polling GET /api/bootcamps/enrollments/check/:batchId every 2s
+    ├─→ isEnrolled: true  → redirect to /bootcamps/:packageId ✅
     └─→ isEnrolled: false → tunggu webhook
 ```
 
 **Order Model Changes:**
 ```
 type     → 'course' | 'bootcamp'  (default: 'course')
-batchId  → ref to BootcampBatch, optional (hanya untuk type 'bootcamp')
-courseId → optional (hanya untuk type 'course')
+batchId  → ref to BootcampBatch, optional (only for type 'bootcamp')
+courseId → optional (only for type 'course')
 ```
-> Satu Order model untuk kedua jenis transaksi. Webhook membedakan via `order.type`.
+> One Order model for both transaction kinds. The webhook distinguishes them via `order.type`.
 
 **Data Model — BootcampOrder:**
-> Gunakan model `Order` yang sudah ada dengan tambahan field `type` dan `batchId`.
+> Reuse the existing `Order` model with added `type` and `batchId` fields.
 
 **Data Model — BootcampEnrollment (NEW):**
 ```
 userId      → ref to User
 packageId   → ref to BootcampPackage (denormalized)
 batchId     → ref to BootcampBatch
-orderId     → ref to Order, optional (null jika gratis)
+orderId     → ref to Order, optional (null when free)
 enrolledAt  → Date
 ```
 > Unique index on `[userId, batchId]`.
 
 **BE Tasks:**
-- [ ] Update `Order` model — tambah `type: 'course' | 'bootcamp'` (default `'course'`), `batchId?: ref`; `courseId` jadi optional
+- [ ] Update `Order` model — add `type: 'course' | 'bootcamp'` (default `'course'`), `batchId?: ref`; `courseId` becomes optional
 - [ ] `BootcampEnrollment` model (`userId`, `packageId`, `batchId`, `orderId?`, `enrolledAt`) — unique index `[userId, batchId]`
 - [ ] `POST /api/checkout/bootcamp/create-order` — create BootcampOrder + Snap token
-- [ ] `POST /api/checkout/bootcamp/webhook` — verifikasi signature, update BootcampOrder, upsert BootcampEnrollment
-- [ ] `GET /api/checkout/bootcamp/verify/:orderId` — fallback manual verify ke Midtrans
+- [ ] `POST /api/checkout/bootcamp/webhook` — verify signature, update BootcampOrder, upsert BootcampEnrollment
+- [ ] `GET /api/checkout/bootcamp/verify/:orderId` — manual verify fallback to Midtrans
 - [ ] `GET /api/bootcamps/enrollments/check/:batchId` — return `{ isEnrolled: boolean }`
-- [ ] Update `GET /api/bootcamps/:id` — tambah `isEnrolled` di response (cek BootcampEnrollment)
+- [ ] Update `GET /api/bootcamps/:id` — add `isEnrolled` to the response (checks BootcampEnrollment)
 
 **FE Tasks:**
-- [ ] `src/types/bootcamps.ts` — tambah `BootcampEnrollment`, `BootcampEnrollmentStatus`
-- [ ] `src/api/bootcamps.ts` — tambah `createBootcampOrder()`, `verifyBootcampPayment()`, `checkBootcampEnrollment()`
+- [ ] `src/types/bootcamps.ts` — add `BootcampEnrollment`, `BootcampEnrollmentStatus`
+- [ ] `src/api/bootcamps.ts` — add `createBootcampOrder()`, `verifyBootcampPayment()`, `checkBootcampEnrollment()`
 - [ ] `src/composables/bootcamps/useBootcampCheckout.ts` — load snap.js, createOrder mutation, snap.pay callbacks
 - [ ] `src/composables/bootcamps/useBootcampEnrollment.ts` — polling + timeout + manualVerify
-- [ ] `BootcampDetailView.vue` — update modal "Register Now" → tombol "Bayar Sekarang" + useBootcampCheckout
+- [ ] `BootcampDetailView.vue` — update the "Register Now" modal → "Bayar Sekarang" button + useBootcampCheckout
 - [ ] `src/views/bootcamps/CheckoutBootcampResultView.vue` — polling enrollment status + redirect
 - [ ] Add route `/checkout/bootcamp/result` → `CheckoutBootcampResultView`
 
@@ -2216,27 +2271,27 @@ User navigates to /my-bootcamps  (requires auth)
           |
           ▼
     GET /api/bootcamps/my-enrollments
-    Response: list batch yang sudah diikuti + package info + sesi mendatang
+    Response: joined batches + package info + upcoming sessions
           |
           ▼
     FE: card per batch
-        - nama package, nama batch, tanggal mulai–selesai
-        - jumlah sesi, status batch (ongoing/completed)
-        - link ke halaman sesi live (Phase 2.5)
+        - package name, batch name, start–end date
+        - session count, batch status (ongoing/completed)
+        - link to the live session page (Phase 2.5)
 ```
 
 **BE Tasks:**
 - [ ] `GET /api/bootcamps/my-enrollments` — list BootcampEnrollment user, populate batchId + packageId
-- [ ] `GET /api/admin/batches/:id/enrollments` — list semua peserta yang enrolled di batch (admin only)
+- [ ] `GET /api/admin/batches/:id/enrollments` — list all students enrolled in the batch (admin only)
 
 **FE Tasks:**
-- [ ] `src/types/bootcamps.ts` — tambah `MyBootcampEnrollment`
-- [ ] `src/api/bootcamps.ts` — tambah `getMyBootcampEnrollments()`
+- [ ] `src/types/bootcamps.ts` — add `MyBootcampEnrollment`
+- [ ] `src/api/bootcamps.ts` — add `getMyBootcampEnrollments()`
 - [ ] `src/composables/bootcamps/useMyBootcamps.ts`
-- [ ] `src/views/user/MyBootcampsView.vue` — list enrolled batches + info sesi
-- [ ] Update `ProfileLayout.vue` — tambah menu "Bootcamp Saya" (LayoutIcon) ke sidebar + pill nav
+- [ ] `src/views/user/MyBootcampsView.vue` — list enrolled batches + session info
+- [ ] Update `ProfileLayout.vue` — add a "My Bootcamps" menu item (LayoutIcon) to the sidebar + pill nav
 - [ ] Add route `/my-bootcamps` → `MyBootcampsView` (requiresAuth, under ProfileLayout)
-- [ ] `AppNavbar.vue` — tambah "Bootcamp Saya" di dropdown user menu
+- [ ] `AppNavbar.vue` — add "My Bootcamps" to the user dropdown menu
 
 ---
 
@@ -2245,17 +2300,17 @@ User navigates to /my-bootcamps  (requires auth)
 **Flow:**
 
 ```
-User menyelesaikan semua lesson di course (100% progress)
+User completes every lesson in the course (100% progress)
           |
           ▼
-    CourseDetailView: progress bar 100% → tampil tombol "Lihat Sertifikat"
+    CourseDetailView: progress bar at 100% → shows the "Lihat Sertifikat" button
           |
           ▼
-    User klik → navigasi ke /courses/:id/certificate
+    User clicks → navigates to /courses/:id/certificate
           |
           ▼
     GET /api/courses/:id/certificate
-    ├─→ progress < 100%  → 403 "Selesaikan semua lesson terlebih dahulu"
+    ├─→ progress < 100%  → 403 "Complete every lesson first"
     └─→ progress = 100%
               |
               ▼
@@ -2264,31 +2319,31 @@ User menyelesaikan semua lesson di course (100% progress)
           |
           ▼
     FE: render CertificateView — HTML certificate
-        + tombol "Download PDF" (browser print / jsPDF)
+        + "Download PDF" button (browser print / jsPDF)
 ```
 
 **Data Model — Certificate (NEW):**
 ```
 userId          → ref to User
 courseId        → ref to Course
-certificateId   → string (UUID v4, unique — untuk verifikasi)
+certificateId   → string (UUID v4, unique — for verification)
 issuedAt        → Date
 ```
-> Unique index on `[userId, courseId]`. Upsert-safe — klik berkali-kali tidak buat certificate baru.
+> Unique index on `[userId, courseId]`. Upsert-safe — clicking repeatedly does not create a new certificate.
 
 **BE Tasks:**
 - [ ] `Certificate` model (`userId`, `courseId`, `certificateId` UUID, `issuedAt`) — unique index `[userId, courseId]`
-- [ ] `GET /api/courses/:id/certificate` — cek progress 100%, upsert Certificate, return data sertifikat
+- [ ] `GET /api/courses/:id/certificate` — check progress is 100%, upsert Certificate, return certificate data
 
 **FE Tasks:**
-- [ ] Install `jspdf` + `html2canvas` — untuk generate PDF dari HTML
-- [ ] `src/types/courses.ts` — tambah `CertificateData`
-- [ ] `src/api/courses.ts` — tambah `getCertificate(courseId)`
-- [ ] `src/composables/courses/useCertificate.ts` — useQuery untuk certificate data
-- [ ] `src/views/courses/CertificateView.vue` — tampilan sertifikat (nama, course, tanggal, ID verifikasi) + tombol Download PDF
-- [ ] `CourseDetailView.vue` — tampilkan tombol "Lihat Sertifikat" saat progress 100%
+- [ ] Install `jspdf` + `html2canvas` — to generate a PDF from HTML
+- [ ] `src/types/courses.ts` — add `CertificateData`
+- [ ] `src/api/courses.ts` — add `getCertificate(courseId)`
+- [ ] `src/composables/courses/useCertificate.ts` — useQuery for certificate data
+- [ ] `src/views/courses/CertificateView.vue` — certificate view (name, course, date, verification ID) + Download PDF button
+- [ ] `CourseDetailView.vue` — show a "View Certificate" button at 100% progress
 - [ ] Add route `/courses/:id/certificate` → `CertificateView` (requiresAuth)
-- [ ] `MyCoursesView.vue` — tampilkan badge "Sertifikat Tersedia" + link di card yang sudah 100%
+- [ ] `MyCoursesView.vue` — show a "Certificate Available" badge + link on cards that reached 100%
 
 ---
 
@@ -2350,8 +2405,8 @@ issuedAt        → Date
 | POST   | /api/checkout/create-order            | Create order + generate Midtrans Snap token (reuses pending order if exists)         | JWT  |
 | POST   | /api/checkout/webhook                 | **Primary** — Midtrans push: verify signature, update Order, upsert Enrollment       | -    |
 | GET    | /api/checkout/verify/:orderId         | **Fallback** — BE pulls status from Midtrans API, upsert Enrollment if settled       | JWT  |
-| GET    | /api/enrollments/check/:courseId      | Cek status enrollment user — dipolling FE setelah bayar hingga webhook mengisi DB    | JWT  |
-| GET    | /api/enrollments/my-courses           | List enrolled courses + completed_lessons per course (dari Progress collection)      | JWT  |
+| GET    | /api/enrollments/check/:courseId      | Check the user's enrollment status — polled by the FE after payment until the webhook fills the DB | JWT  |
+| GET    | /api/enrollments/my-courses           | List enrolled courses + completed_lessons per course (from the Progress collection)  | JWT  |
 
 ### User & Orders
 
@@ -2366,11 +2421,11 @@ issuedAt        → Date
 
 | Method | Endpoint                                      | Description                                                          | Auth        |
 |--------|-----------------------------------------------|----------------------------------------------------------------------|-------------|
-| GET    | /api/admin/stats                              | Dashboard — total users, courses, enrollments, revenue, recent orders | JWT + Admin |
+| GET    | /api/admin/dashboard/stats                    | Dashboard — total users, courses, enrollments, revenue, recent orders | JWT + Admin |
 | GET    | /api/admin/courses                            | List all courses (draft + published) with student count              | JWT + Admin |
 | GET    | /api/admin/courses/:id                        | Course detail + full module/chapter/lesson tree (for form pre-fill)  | JWT + Admin |
 | POST   | /api/admin/courses                            | Create course (default status: draft)                                | JWT + Admin |
-| PATCH  | /api/admin/courses/:id                        | Update course — termasuk publish/unpublish (`status` field)          | JWT + Admin |
+| PATCH  | /api/admin/courses/:id                        | Update course — including publish/unpublish (`status` field)         | JWT + Admin |
 | DELETE | /api/admin/courses/:id                        | Delete course + cascade: Module, Chapter, Lesson, QuizQuestion, QuizAttempt, Progress, TaskSubmission | JWT + Admin |
 | POST   | /api/admin/courses/:id/modules                | Add module to course                                                 | JWT + Admin |
 | PATCH  | /api/admin/modules/:id                        | Update module                                                        | JWT + Admin |
@@ -2408,7 +2463,7 @@ issuedAt        → Date
 | POST   | /api/admin/batches/:id/sessions               | Add session to batch                                                 | JWT + Admin |
 | PATCH  | /api/admin/sessions/:id                       | Update session                                                       | JWT + Admin |
 | DELETE | /api/admin/sessions/:id                       | Delete session                                                       | JWT + Admin |
-| GET    | /api/admin/revenue                            | Revenue report — by month + by course + success rate (`?from=&to=`) | JWT + Admin |
+| GET    | /api/admin/dashboard/revenue                  | Revenue report — 12-month series + top courses + summary (`?year=`, defaults to current year) | JWT + Admin |
 | GET    | /api/admin/batches/:id/enrollments            | List all students enrolled in a batch                                | JWT + Admin |
 
 ### Bootcamp Checkout & Enrollment (Phase 7)
@@ -2417,15 +2472,15 @@ issuedAt        → Date
 |--------|-----------------------------------------------|----------------------------------------------------------------------|------|
 | POST   | /api/checkout/bootcamp/create-order           | Create bootcamp order + Snap token (`{ batchId }`)                   | JWT  |
 | POST   | /api/checkout/bootcamp/webhook                | Midtrans push: verify signature, update BootcampOrder, upsert BootcampEnrollment | -  |
-| GET    | /api/checkout/bootcamp/verify/:orderId        | Fallback manual verify ke Midtrans API                               | JWT  |
-| GET    | /api/bootcamps/enrollments/check/:batchId     | Cek apakah user enrolled di batch ini                                | JWT  |
-| GET    | /api/bootcamps/my-enrollments                 | List semua bootcamp enrollment user                                  | JWT  |
+| GET    | /api/checkout/bootcamp/verify/:orderId        | Manual verify fallback to the Midtrans API                           | JWT  |
+| GET    | /api/bootcamps/enrollments/check/:batchId     | Check whether the user is enrolled in this batch                     | JWT  |
+| GET    | /api/bootcamps/my-enrollments                 | List all of the user's bootcamp enrollments                          | JWT  |
 
 ### Certificate (Phase 7)
 
 | Method | Endpoint                                      | Description                                                          | Auth |
 |--------|-----------------------------------------------|----------------------------------------------------------------------|------|
-| GET    | /api/courses/:id/certificate                  | Get/issue certificate jika progress 100% (upsert, idempotent)        | JWT  |
+| GET    | /api/courses/:id/certificate                  | Get/issue certificate when progress is 100% (upsert, idempotent)     | JWT  |
 
 ---
 
@@ -2645,8 +2700,8 @@ issuedAt        → Date
 
 | Collection         | Indexes                                      | Notes                                      |
 |--------------------|----------------------------------------------|--------------------------------------------|
-| `users`            | `email` (unique)                             | `password` optional (Google-only users); `avatar_url` ditambah Phase 5; `role` enum: `student\|instructor\|admin\|mentor` |
-| `topics`           | `slug` (unique)                              | Dikelola via admin panel; `Course.topic_name` di-resolve otomatis dari koleksi ini saat create/update course |
+| `users`            | `email` (unique)                             | `password` optional (Google-only users); `avatar_url` added in Phase 5; `role` enum: `student\|instructor\|admin\|mentor` |
+| `topics`           | `slug` (unique)                              | Managed from the admin panel; `Course.topic_name` is resolved automatically from this collection on course create/update |
 | `sessions`         | `userId + deviceId` (unique), TTL on `refreshExpiredAt` | One active session per device   |
 | `courses`          | -                                            | `price = 0` when `isFree = true`           |
 | `modules`          | `courseId`                                   | Ordered with `order` field                 |
@@ -2656,9 +2711,9 @@ issuedAt        → Date
 | `quizquestions`    | `lessonId`                                   | `correct_index` never returned to FE       |
 | `quizattempts`     | `[userId, lessonId]`                         | Multiple attempts allowed; `my-attempt` returns latest |
 | `tasksubmissions`  | `[userId, lessonId]` (unique)                | One submission per user per lesson         |
-| `orders`               | `midtrans_order_id` (unique), `[userId, courseId, status]` | `type: 'course'\|'bootcamp'`; `batchId` populated for bootcamp orders (Phase 7) |
+| `orders`               | `midtrans_order_id` (unique), `[userId, courseId, status]`, `[status, paidAt]` | `type: 'course'\|'bootcamp'`; `batchId` populated for bootcamp orders (Phase 7). The `[status, paidAt]` index serves the revenue report |
 | `enrollments`          | `[userId, courseId]` (unique)                | Created after payment settlement; `orderId` null for free courses    |
-| `bootcamppackages`     | -                                            | `mentors[]` embedded dengan `userId` ref ke User (role: mentor) + `occupation`; tidak ada koleksi mentor terpisah |
+| `bootcamppackages`     | -                                            | `mentors[]` embedded with a `userId` ref to User (role: mentor) + `occupation`; there is no separate mentor collection |
 | `bootcampbatches`      | `packageId`                                  | `starting_price` aggregated from cheapest batch                      |
 | `bootcampsessions`     | `batchId`                                    | -                                                                    |
 | `bootcampenrollments`  | `[userId, batchId]` (unique)                 | Created after bootcamp payment settlement (Phase 7)                  |
