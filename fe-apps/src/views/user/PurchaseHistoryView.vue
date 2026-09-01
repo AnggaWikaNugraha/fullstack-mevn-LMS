@@ -1,12 +1,25 @@
 <script setup lang="ts">
 import { useOrders } from '@/composables/orders/useOrders';
 import { formatRupiah, formatDate } from '@/utils/format';
+import type { MyOrder } from '@/types/orders';
 
 const {
   orders,
   isLoading,
   isError,
 } = useOrders();
+
+// Order lama tidak menyimpan field type, jadi yang bukan bootcamp dianggap course
+const isBootcamp = (order: MyOrder) => order.type === 'bootcamp';
+
+// Judul bootcamp digabung "Nama Program — Batch" agar satu baris cukup jelas
+const orderTitle = (order: MyOrder) =>
+  isBootcamp(order)
+    ? `${order.batchId?.packageId?.title ?? 'Bootcamp'} — ${order.batchId?.title ?? ''}`
+    : (order.courseId?.title ?? '');
+
+const orderCover = (order: MyOrder) =>
+  isBootcamp(order) ? order.batchId?.packageId?.image_url : order.courseId?.cover_url;
 
 const statusConfig: Record<string, { label: string; class: string }> = {
   paid: { label: 'Berhasil', class: 'bg-green-100 text-green-700' },
@@ -48,18 +61,26 @@ const statusConfig: Record<string, { label: string; class: string }> = {
         :key="order._id"
         class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-4 items-center"
       >
-        <!-- Cover kurs -->
+        <!-- Cover kurs atau bootcamp -->
         <div class="w-20 h-14 shrink-0 rounded-lg overflow-hidden bg-gray-100">
           <img
-            :src="order.courseId.cover_url"
-            :alt="order.courseId.title"
+            :src="orderCover(order)"
+            :alt="orderTitle(order)"
             class="w-full h-full object-cover"
           />
         </div>
 
         <!-- Info -->
         <div class="flex-1 min-w-0">
-          <p class="font-semibold text-gray-900 text-sm truncate">{{ order.courseId.title }}</p>
+          <div class="flex items-center gap-2">
+            <span
+              v-if="isBootcamp(order)"
+              class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 shrink-0"
+            >
+              Bootcamp
+            </span>
+            <p class="font-semibold text-gray-900 text-sm truncate">{{ orderTitle(order) }}</p>
+          </div>
           <p class="text-xs text-gray-400 mt-0.5">{{ formatDate(order.createdAt) }}</p>
           <p class="text-xs text-gray-500 mt-0.5 font-mono truncate">{{ order.midtrans_order_id }}</p>
         </div>

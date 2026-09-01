@@ -2,7 +2,9 @@ import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IOrder extends Document {
   userId: Types.ObjectId;
-  courseId: Types.ObjectId;
+  type: 'course' | 'bootcamp';
+  courseId?: Types.ObjectId;     // hanya untuk type 'course'
+  batchId?: Types.ObjectId;      // hanya untuk type 'bootcamp'
   amount: number;                // harga terkunci saat order dibuat
   status: 'pending' | 'paid' | 'failed' | 'expired';
   snap_token: string;            // Midtrans Snap token
@@ -13,7 +15,23 @@ export interface IOrder extends Document {
 const orderSchema = new Schema<IOrder>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
+    // Order lama tidak punya field ini, jadi bawaannya 'course' agar tetap terbaca
+    // sebagai penjualan course tanpa perlu migrasi data
+    type: { type: String, enum: ['course', 'bootcamp'], default: 'course' },
+    courseId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Course',
+      required: function (this: IOrder) {
+        return this.type === 'course';
+      },
+    },
+    batchId: {
+      type: Schema.Types.ObjectId,
+      ref: 'BootcampBatch',
+      required: function (this: IOrder) {
+        return this.type === 'bootcamp';
+      },
+    },
     amount: { type: Number, required: true },
     status: {
       type: String,
@@ -28,6 +46,10 @@ const orderSchema = new Schema<IOrder>(
 );
 
 orderSchema.index({ userId: 1, courseId: 1, status: 1 });
+
+// Cerminan indeks di atas untuk sisi bootcamp — melayani pencarian order pending
+// milik user pada satu batch saat checkout diulang
+orderSchema.index({ userId: 1, batchId: 1, status: 1 });
 
 // Laporan pendapatan menyaring status + rentang paidAt tanpa userId,
 // jadi indeks di atas tidak terpakai untuk kueri itu

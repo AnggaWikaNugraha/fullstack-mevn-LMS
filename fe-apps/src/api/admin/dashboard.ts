@@ -1,14 +1,16 @@
 import apiClient from '../client';
 import type { ApiResponse } from '@/types/api';
 
-// Bila course atau user-nya sudah dihapus, backend mengirim label pengganti
-// dengan _id bernilai null, bukan menghilangkan ordernya
+// Bila produk atau user-nya sudah dihapus, backend mengirim label pengganti
+// dengan _id bernilai null, bukan menghilangkan ordernya.
+// `item` menampung course maupun batch bootcamp, dibedakan lewat `type`.
 export interface AdminRecentOrder {
   _id: string;
   amount: number;
   paidAt: string | null;
+  type: 'course' | 'bootcamp';
   user: { _id: string | null; name: string; email: string; avatar_url: string | null };
-  course: { _id: string | null; title: string; cover_url: string | null };
+  item: { _id: string | null; title: string; cover_url: string | null };
 }
 
 export interface AdminDashboardStats {
@@ -35,11 +37,21 @@ export interface RevenueTopCourse {
   sold: number;
 }
 
+export interface RevenueTopBootcamp {
+  batchId: string;
+  title: string;        // nama package
+  batch_title: string;
+  image_url: string | null;
+  revenue: number;
+  sold: number;
+}
+
 export interface AdminRevenueReport {
   year: number;
   availableYears: number[];
   series: RevenuePoint[];
   topCourses: RevenueTopCourse[];
+  topBootcamps: RevenueTopBootcamp[];
   summary: {
     total: number;
     paidOrders: number;

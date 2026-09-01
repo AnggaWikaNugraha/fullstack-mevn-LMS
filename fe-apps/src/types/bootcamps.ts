@@ -29,6 +29,7 @@ export interface BootcampBatch {
   strikethrough_price: number;
   package_type: 'online' | 'offline' | 'hybrid';
   sessions: BootcampSession[];
+  isEnrolled: boolean;
 }
 
 export interface BootcampPackage {
@@ -40,6 +41,8 @@ export interface BootcampPackage {
   mentors: BootcampMentor[];
   batches: BootcampBatch[];
   createdAt: string;
+  // true bila user terdaftar di salah satu batch package ini
+  isEnrolled: boolean;
 }
 
 export interface BootcampListResponse {
@@ -49,4 +52,9 @@ export interface BootcampListResponse {
 
 export interface BootcampDetailResponse {
   bootcamp: BootcampPackage;
+}
+
+export interface BootcampEnrollmentStatus {
+  isEnrolled: boolean;
+  enrolledAt: string | null;
 }

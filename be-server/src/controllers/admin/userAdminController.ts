@@ -65,8 +65,15 @@ export const getUserDetail = async (req: AuthRequest, res: Response, next: NextF
       Enrollment.find({ userId: id })
         .populate('courseId', 'title cover_url level topic_name')
         .sort({ enrolledAt: -1 }),
+      // Order bootcamp ikut ditarik: total_spent di bawah menjumlahkan semua order
+      // lunas, jadi daftarnya harus memuat keduanya agar angkanya tidak berbeda
       Order.find({ userId: id })
         .populate('courseId', 'title cover_url')
+        .populate({
+          path: 'batchId',
+          select: 'title packageId',
+          populate: { path: 'packageId', select: 'title image_url' },
+        })
         .sort({ createdAt: -1 }),
     ]);
 

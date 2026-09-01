@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
 import { useUserDetail, roleBadge, roleOptions, statusBadge, formatDate, formatRupiah } from '@/composables/admin/useUserDetail';
-import type { AdminUser } from '@/api/admin/users';
+import type { AdminUser, AdminUserOrder } from '@/api/admin/users';
 import { BookOpen, ShoppingCart, ArrowLeft } from '@lucide/vue';
 
 const route = useRoute();
 const userId = route.params.id as string;
 
 const { user, enrollments, orders, totalSpent, isLoading, changeRole, changingRole } = useUserDetail(userId);
+
+// Satu daftar memuat order course dan bootcamp, judulnya diambil dari ref yang sesuai
+function orderTitle(order: AdminUserOrder): string {
+  if (order.type === 'bootcamp') {
+    return order.batchId
+      ? `${order.batchId.packageId?.title ?? 'Bootcamp'} — ${order.batchId.title}`
+      : 'Batch dihapus';
+  }
+  return order.courseId?.title ?? 'Kursus dihapus';
+}
 </script>
 
 <template>
@@ -147,7 +157,13 @@ const { user, enrollments, orders, totalSpent, isLoading, changeRole, changingRo
           >
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-gray-800 truncate">
-                {{ order.courseId?.title ?? 'Kursus dihapus' }}
+                <span
+                  v-if="order.type === 'bootcamp'"
+                  class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 mr-1.5"
+                >
+                  Bootcamp
+                </span>
+                {{ orderTitle(order) }}
               </p>
               <p class="text-xs text-gray-400">{{ order.midtrans_order_id }}</p>
             </div>

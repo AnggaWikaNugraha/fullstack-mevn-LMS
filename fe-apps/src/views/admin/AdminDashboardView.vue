@@ -82,7 +82,7 @@ const { stats, recentOrders, isLoading, isError } = useDashboardStats();
           <thead>
             <tr class="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
               <th class="text-left px-5 py-3">Pembeli</th>
-              <th class="text-left px-5 py-3 hidden md:table-cell">Course</th>
+              <th class="text-left px-5 py-3 hidden md:table-cell">Produk</th>
               <th class="text-left px-5 py-3 hidden lg:table-cell">Tanggal</th>
               <th class="text-right px-5 py-3">Nominal</th>
             </tr>
@@ -99,8 +99,14 @@ const { stats, recentOrders, isLoading, isError } = useDashboardStats();
                 </p>
                 <p class="text-xs text-gray-400">{{ order.user.email }}</p>
               </td>
-              <td class="px-5 py-3.5 hidden md:table-cell" :class="order.course._id ? 'text-gray-600' : 'text-gray-400 italic'">
-                {{ order.course.title }}
+              <td class="px-5 py-3.5 hidden md:table-cell" :class="order.item._id ? 'text-gray-600' : 'text-gray-400 italic'">
+                <span
+                  v-if="order.type === 'bootcamp'"
+                  class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 mr-1.5"
+                >
+                  Bootcamp
+                </span>
+                {{ order.item.title }}
               </td>
               <td class="px-5 py-3.5 hidden lg:table-cell text-xs text-gray-500">
                 {{ order.paidAt ? formatDate(order.paidAt) : '—' }}

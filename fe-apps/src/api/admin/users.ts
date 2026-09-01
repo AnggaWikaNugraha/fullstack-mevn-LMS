@@ -25,7 +25,14 @@ export interface AdminUserEnrollment {
 
 export interface AdminUserOrder {
   _id: string;
+  // Order lama dibuat sebelum field type ada, jadi yang bukan bootcamp dianggap course
+  type?: 'course' | 'bootcamp';
   courseId: { _id: string; title: string; cover_url: string } | null;
+  batchId?: {
+    _id: string;
+    title: string;
+    packageId: { _id: string; title: string; image_url: string } | null;
+  } | null;
   amount: number;
   status: 'pending' | 'paid' | 'failed' | 'expired';
   midtrans_order_id: string;

@@ -4,7 +4,7 @@ import { formatRupiah } from '@/utils/format';
 import { BarChart2 } from '@lucide/vue';
 
 const {
-  bars, summary, topCourses,
+  bars, summary, topCourses, topBootcamps,
   year, availableYears, selectYear,
   hasData, isLoading, isFetching,
 } = useRevenueReport();
@@ -26,7 +26,7 @@ const persen = (v: number) => `${(v * 100).toFixed(1)}%`;
     <div class="flex items-center justify-between mb-6 gap-4">
       <div>
         <h1 class="text-xl font-bold text-gray-900">Revenue</h1>
-        <p class="text-gray-500 text-sm">Laporan pendapatan dari penjualan course.</p>
+        <p class="text-gray-500 text-sm">Laporan pendapatan dari penjualan course dan bootcamp.</p>
       </div>
       <select
         v-if="availableYears.length"
@@ -133,6 +133,54 @@ const persen = (v: number) => `${(v * 100).toFixed(1)}%`;
               <td class="px-5 py-3.5 text-right text-gray-600">{{ course.sold }}</td>
               <td class="px-5 py-3.5 text-right font-semibold text-gray-800">
                 {{ formatRupiah(course.revenue) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Bootcamp terlaris — dipisah karena dikelompokkan per batch, bukan per course -->
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-6">
+        <div class="px-5 py-4 border-b border-gray-100">
+          <h2 class="text-sm font-bold text-gray-800">Bootcamp Penyumbang Terbesar</h2>
+        </div>
+
+        <div v-if="!topBootcamps.length" class="p-10 text-center text-sm text-gray-500">
+          Belum ada penjualan bootcamp di tahun {{ year }}.
+        </div>
+
+        <table v-else class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <th class="text-left px-5 py-3">Batch</th>
+              <th class="text-right px-5 py-3">Terjual</th>
+              <th class="text-right px-5 py-3">Pendapatan</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="bootcamp in topBootcamps"
+              :key="bootcamp.batchId"
+              class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
+            >
+              <td class="px-5 py-3.5">
+                <div class="flex items-center gap-3">
+                  <img
+                    v-if="bootcamp.image_url"
+                    :src="bootcamp.image_url"
+                    :alt="bootcamp.title"
+                    class="w-10 h-7 rounded object-cover shrink-0 bg-gray-100"
+                  />
+                  <div v-else class="w-10 h-7 rounded bg-gray-100 shrink-0" />
+                  <div class="min-w-0">
+                    <p class="font-medium text-gray-800 truncate">{{ bootcamp.title }}</p>
+                    <p class="text-xs text-gray-400">{{ bootcamp.batch_title }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-3.5 text-right text-gray-600">{{ bootcamp.sold }}</td>
+              <td class="px-5 py-3.5 text-right font-semibold text-gray-800">
+                {{ formatRupiah(bootcamp.revenue) }}
               </td>
             </tr>
           </tbody>

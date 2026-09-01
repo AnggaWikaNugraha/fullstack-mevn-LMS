@@ -16,7 +16,7 @@ const {
   setSelectedBatch,
   formatSessionDate,
   handleRegister,
-  isRegisterDisabled,
+  ctaState,
   isLoading,
   isError,
 } = useBootcampDetail(id);
@@ -221,20 +221,20 @@ const statusConfig = {
               <!-- Tombol daftar -->
               <button
                 class="w-full py-3 rounded-xl font-semibold text-sm transition-colors mt-2"
-                :class="isRegisterDisabled(bootcamp.status, selectedBatch.quota_used_percentage)
+                :class="ctaState.disabled
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-indigo-600 text-white hover:bg-indigo-700'"
-                :disabled="isRegisterDisabled(bootcamp.status, selectedBatch.quota_used_percentage)"
+                :disabled="ctaState.disabled"
                 @click="handleRegister"
               >
-                <template v-if="bootcamp.status === 'coming_soon'">Segera Hadir</template>
-                <template v-else-if="bootcamp.status === 'closed'">Pendaftaran Ditutup</template>
-                <template v-else-if="selectedBatch.quota_used_percentage >= 100">Kuota Penuh</template>
-                <template v-else>Daftar Sekarang</template>
+                {{ ctaState.label }}
               </button>
 
-              <p class="text-xs text-gray-400 text-center">
-                Checkout & pembayaran tersedia segera
+              <p v-if="selectedBatch.isEnrolled" class="text-xs text-green-600 text-center">
+                Kamu sudah terdaftar di batch ini.
+              </p>
+              <p v-else class="text-xs text-gray-400 text-center">
+                Pembayaran aman via Midtrans
               </p>
             </div>
             <div v-else class="text-sm text-gray-400 text-center py-4">

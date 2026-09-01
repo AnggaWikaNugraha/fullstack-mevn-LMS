@@ -58,25 +58,51 @@ export const getDashboardStats = async (_req: AuthRequest, res: Response, next: 
       sumPaidAmount(),
       sumPaidAmount({ paidAt: { $gte: awalBulanIni } }),
       Order.find({ status: 'paid' })
-        .select('amount paidAt userId courseId')
+        .select('amount paidAt userId type courseId batchId')
         .populate('userId', 'name email avatar_url')
         .populate('courseId', 'title cover_url')
+        .populate({
+          path: 'batchId',
+          select: 'title packageId',
+          populate: { path: 'packageId', select: 'title image_url' },
+        })
         .sort({ paidAt: -1 })
         .limit(5),
     ]);
 
-    // Course atau user bisa hilang bila dokumennya dihapus setelah order dibuat,
-    // misalnya karena seeder dijalankan ulang. Order tetap ditampilkan dengan label
-    // pengganti supaya daftar ini tidak bertentangan dengan angka total di atas.
+    // Course, batch, atau user bisa hilang bila dokumennya dihapus setelah order
+    // dibuat, misalnya karena seeder dijalankan ulang. Order tetap ditampilkan
+    // dengan label pengganti supaya daftar ini tidak bertentangan dengan angka
+    // total di atas.
     const recentOrders = rawRecentOrders.map((o) => {
-      const course = o.courseId as unknown as { _id: string; title: string; cover_url: string } | null;
       const user = o.userId as unknown as { _id: string; name: string; email: string; avatar_url: string | null } | null;
+
+      // Order lama dibuat sebelum ada field type, jadi yang tanpa type dianggap course
+      const isBootcamp = o.type === 'bootcamp';
+      let item: { _id: string | null; title: string; cover_url: string | null };
+
+      if (isBootcamp) {
+        const batch = o.batchId as unknown as
+          | { _id: string; title: string; packageId: { title: string; image_url: string } | null }
+          | null;
+        item = batch
+          ? {
+              _id: batch._id,
+              title: `${batch.packageId?.title ?? '(bootcamp telah dihapus)'} — ${batch.title}`,
+              cover_url: batch.packageId?.image_url ?? null,
+            }
+          : { _id: null, title: '(batch telah dihapus)', cover_url: null };
+      } else {
+        const course = o.courseId as unknown as { _id: string; title: string; cover_url: string } | null;
+        item = course ?? { _id: null, title: '(course telah dihapus)', cover_url: null };
+      }
 
       return {
         _id: o._id,
         amount: o.amount,
         paidAt: o.paidAt,
-        course: course ?? { _id: null, title: '(course telah dihapus)', cover_url: null },
+        type: isBootcamp ? 'bootcamp' : 'course',
+        item,
         user: user ?? { _id: null, name: '(user telah dihapus)', email: '', avatar_url: null },
       };
     });
@@ -97,8 +123,12 @@ export const getDashboardStats = async (_req: AuthRequest, res: Response, next: 
 };
 
 // ─── Laporan Pendapatan ───────────────────────────────────────────────────────
-// Cakupannya hanya penjualan course. Bootcamp belum punya alur checkout,
-// jadi tidak ada order yang merujuk ke bootcamp sama sekali.
+// Angka total mencakup penjualan course dan bootcamp sekaligus. Peringkat produk
+// dipisah jadi dua tabel karena keduanya dikelompokkan lewat ref yang berbeda.
+//
+// Order yang dibuat sebelum field `type` ada tidak menyimpan field itu sama sekali,
+// jadi penyaring sisi course memakai { $ne: 'bootcamp' }, bukan { type: 'course' },
+// supaya riwayat lama tidak hilang dari laporan.
 
 export const getRevenueReport = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -113,7 +143,7 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
     const awalTahunDepan = wibToUtc(year + 1, 0);
     const rentangTahun = { $gte: awalTahun, $lt: awalTahunDepan };
 
-    const [rawSeries, rawTopCourses, [summaryRow], statusCounts, rawYears] = await Promise.all([
+    const [rawSeries, rawTopCourses, rawTopBootcamps, [summaryRow], statusCounts, rawYears] = await Promise.all([
       // Pendapatan per bulan
       Order.aggregate<{ _id: string; total: number; orders: number }>([
         { $match: { status: 'paid', paidAt: rentangTahun } },
@@ -129,7 +159,7 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
 
       // Lima course dengan pendapatan terbesar
       Order.aggregate([
-        { $match: { status: 'paid', paidAt: rentangTahun } },
+        { $match: { status: 'paid', paidAt: rentangTahun, type: { $ne: 'bootcamp' } } },
         { $group: { _id: '$courseId', revenue: { $sum: '$amount' }, sold: { $sum: 1 } } },
         { $sort: { revenue: -1 } },
         { $limit: 5 },
@@ -142,6 +172,30 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
             courseId: '$_id',
             title: { $ifNull: ['$course.title', '(course telah dihapus)'] },
             cover_url: { $ifNull: ['$course.cover_url', null] },
+            revenue: 1,
+            sold: 1,
+          },
+        },
+      ]),
+
+      // Lima batch bootcamp dengan pendapatan terbesar
+      Order.aggregate([
+        { $match: { status: 'paid', paidAt: rentangTahun, type: 'bootcamp' } },
+        { $group: { _id: '$batchId', revenue: { $sum: '$amount' }, sold: { $sum: 1 } } },
+        { $sort: { revenue: -1 } },
+        { $limit: 5 },
+        { $lookup: { from: 'bootcampbatches', localField: '_id', foreignField: '_id', as: 'batch' } },
+        { $unwind: { path: '$batch', preserveNullAndEmptyArrays: true } },
+        { $lookup: { from: 'bootcamppackages', localField: 'batch.packageId', foreignField: '_id', as: 'package' } },
+        // Batch atau package yang sudah dihapus tetap ditampilkan agar total tidak bocor
+        { $unwind: { path: '$package', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 0,
+            batchId: '$_id',
+            title: { $ifNull: ['$package.title', '(bootcamp telah dihapus)'] },
+            batch_title: { $ifNull: ['$batch.title', '-'] },
+            image_url: { $ifNull: ['$package.image_url', null] },
             revenue: 1,
             sold: 1,
           },
@@ -195,6 +249,7 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
         availableYears,
         series,
         topCourses: rawTopCourses,
+        topBootcamps: rawTopBootcamps,
         summary: {
           total,
           paidOrders,

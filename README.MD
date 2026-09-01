@@ -60,7 +60,9 @@ src/
 │   │   └── useTask.ts         # Task submission query + submit mutation
 │   ├── bootcamps/
 │   │   ├── useBootcamps.ts
-│   │   └── useBootcampDetail.ts
+│   │   ├── useBootcampDetail.ts
+│   │   ├── useBootcampCheckout.ts # load snap.js, createOrder per batch, callback snap.pay
+│   │   └── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
 │   ├── checkout/
 │   │   ├── useCheckout.ts     # load snap.js, createOrder, snap.pay callbacks
 │   │   └── useEnrollment.ts   # polling + timeout + manualVerify fallback
@@ -112,14 +114,16 @@ src/
 │   ├── orders.ts              # MyOrder, MyOrdersResponse
 │   └── router.d.ts            # Extend RouteMeta: requiresAuth, requiresAdmin, guestOnly
 ├── utils/
-│   └── format.ts              # formatRupiah, formatDate, progressPercent
+│   ├── format.ts              # formatRupiah, formatDate, progressPercent
+│   └── snap.ts                # loadSnapScript() — shared by the course and bootcamp checkout
 ├── views/
 │   ├── HomeView.vue
 │   ├── courses/
 │   │   └── CourseDetailView.vue
 │   ├── bootcamps/
 │   │   ├── BootcampsView.vue
-│   │   └── BootcampDetailView.vue
+│   │   ├── BootcampDetailView.vue
+│   │   └── CheckoutBootcampResultView.vue
 │   ├── checkout/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
@@ -221,6 +225,7 @@ src/
 │   ├── TaskSubmission.ts   # submission_url, note, status — unique [userId, lessonId]
 │   ├── Order.ts            # amount, status, snap_token, midtrans_order_id, paidAt
 │   ├── Enrollment.ts       # userId, courseId, orderId — unique [userId, courseId]
+│   ├── BootcampEnrollment.ts # userId, packageId, batchId, orderId — unique [userId, batchId]
 │   ├── BootcampPackage.ts
 │   ├── BootcampBatch.ts
 │   └── BootcampSession.ts
@@ -313,7 +318,7 @@ src/
 | Admin — Task Review                               | ✅ Done         |
 | Admin — Order Management                          | 🔄 Coming Soon  |
 | Admin — Dashboard Stats & Revenue Report          | ✅ Done         |
-| Bootcamp Checkout & Payment (Midtrans)            | 🔄 Coming Soon  |
+| Bootcamp Checkout & Payment (Midtrans)            | ✅ Done         |
 | Bootcamp Saya (My Bootcamps)                      | 🔄 Coming Soon  |
 | Course Completion Certificate (PDF download)      | 🔄 Coming Soon  |
 | Live Session (Agora RTC)                          | 🔄 Coming Soon  |
@@ -2177,88 +2182,162 @@ touches the bootcamp models, so no bootcamp revenue exists to report yet — see
 
 #### 7.1 Bootcamp Checkout & Payment
 
+> Reuses the Phase 4 checkout rails: the same `Order` model, the same Midtrans Snap flow, the same webhook + manual-verify pair. What is new is a second enrollment target — `BootcampEnrollment`, keyed per **batch** — and a `type` discriminator on `Order`.
+
+**Design decisions:**
+
+| Question                          | Choice                                                        | Reason                                                                                                                                                             |
+|-----------------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| One `Order` model or two?         | One — `Order.type: 'course' \| 'bootcamp'`                    | Purchase history, the admin order list and the revenue report already aggregate over `orders`. A second collection would mean duplicating every aggregation.         |
+| One webhook or two?               | One — the existing `POST /api/checkout/webhook` branches on `order.type` | Midtrans allows only **one** Notification URL per merchant account. A second webhook endpoint would simply never be called.                              |
+| Enrollment per package or batch?  | Per batch — unique `[userId, batchId]`                        | A user can buy Batch 1 now and Batch 2 later. Sessions (and the future live-session page) hang off the batch. `packageId` is denormalized so "My Bootcamps" needs no extra lookup. |
+| Free bootcamp?                    | Not supported                                                 | `BootcampBatch.price` is required and there is no `isFree` flag — every batch goes through checkout. No lazy-enrollment path like free courses have.                 |
+| Quota enforcement                 | Soft — `quota_used_percentage` stays a manual admin field     | It is a display percentage, not a seat count. Checkout is blocked at ≥ 100% and when the package is not `open`, but a payment does not move the bar.                 |
+
 **Flow:**
 
 ```
 User navigates to /bootcamps/:id
           |
           ▼
-    GET /api/bootcamps/:id
-    Response: { ...packageData, isEnrolled: boolean (checks whether the user is already enrolled in any batch) }
+    GET /api/bootcamps/:id  (optionalProtect — so the guest response stays identical)
+    Response: { bootcamp: { ...packageData, isEnrolled, batches: [{ ...batch, isEnrolled }] } }
           |
-          ▼
-    User clicks "Register Now" → modal opens (batch info + price)
-          |
-          ▼
-    User clicks "Bayar Sekarang"
-          |
-          ▼
-    POST /api/checkout/bootcamp/create-order  { batchId }
-    ├─→ batch not found        → 404
-    ├─→ already enrolled       → 409
-    ├─→ ada pending order       → reuse snap_token
-    └─→ buat BootcampOrder baru (status: 'pending') + generate Snap token
-          |
-          ▼
-    FE: window.snap.pay(snap_token, callbacks)
-          |
-    User pays
-          |
-          ▼
-    ┌─────────────────────────────────────────────────┐
-    │  Two paths run in parallel                       │
-    └─────────────────────────────────────────────────┘
-          ↓                              ↓
-    Snap callback (FE)            Midtrans POST webhook (server-to-server)
-    router.push to                POST /api/checkout/bootcamp/webhook
-    /checkout/bootcamp/result     1. Verifikasi SHA512 signature_key
-    ?order_id=&batch_id=          2. BootcampOrder.status = 'paid', paidAt = now
-    &result=success               3. BootcampEnrollment.findOneAndUpdate (upsert)
-          ↓
-    CheckoutBootcampResultView.vue
-    polling GET /api/bootcamps/enrollments/check/:batchId every 2s
-    ├─→ isEnrolled: true  → redirect to /bootcamps/:packageId ✅
-    └─→ isEnrolled: false → tunggu webhook
+          ├─→ batch.isEnrolled = true   → CTA becomes "Lihat Bootcamp Saya" → /my-bootcamps
+          ├─→ status ≠ 'open' / quota ≥ 100 → CTA disabled (existing isRegisterDisabled logic)
+          └─→ else                       → CTA "Daftar Sekarang"
+                    |
+                    ▼
+              Not logged in → save redirect_after_login → /auth/login   (existing behaviour)
+              Logged in     → useBootcampCheckout(batchId).startCheckout()
+                    |
+                    ▼
+              POST /api/checkout/bootcamp/create-order  { batchId }
+              ├─→ batch not found         → 404
+              ├─→ package not 'open'      → 400
+              ├─→ already enrolled        → 409
+              ├─→ pending order exists    → reuse its snap_token (no new Midtrans call)
+              └─→ create Order { type: 'bootcamp', batchId, amount: batch.price, status: 'pending' }
+                  + generate Snap token
+                    |
+                    ▼
+              FE: loadSnapScript() (shared with useCheckout) → window.snap.pay(snap_token, callbacks)
+                    |
+              User pays
+                    |
+                    ▼
+              ┌─────────────────────────────────────────────────┐
+              │  Two paths run in parallel                       │
+              └─────────────────────────────────────────────────┘
+                    ↓                              ↓
+          Snap callback (FE)            Midtrans POST webhook (server-to-server)
+          router.push to                POST /api/checkout/webhook   ← SHARED endpoint
+          /checkout/bootcamp/result     1. Verify SHA512 signature_key
+          ?order_id=&batch_id=          2. Order.status = 'paid', paidAt = now
+          &package_id=                  3. switch (order.type)
+          &result=success/pending          ├─ 'course'   → upsert Enrollment
+                    ↓                       └─ 'bootcamp' → upsert BootcampEnrollment
+          CheckoutBootcampResultView.vue                    { userId, packageId, batchId, orderId }
+          useBootcampEnrollment(batchId).startPolling(...)
+          every 2 seconds, max 15x (30 seconds):
+            GET /api/bootcamps/enrollments/check/:batchId
+            ├─→ isEnrolled: true   → clearInterval → router.push /my-bootcamps ✅
+            └─→ isEnrolled: false  → wait for the webhook, retry
+                    |
+              (after 30 seconds, the webhook never arrived)
+                    ↓
+              isTimedOut = true → show the "Cek Status Pembayaran" button
+                    |
+              user clicks → manualVerify(orderId)
+                    ↓
+              GET /api/checkout/verify/:orderId   ← SHARED endpoint, branches on order.type
+              BE asks the Midtrans API directly
+              ├─→ settled → upsert BootcampEnrollment → router.push /my-bootcamps ✅
+              └─→ not yet → button re-enabled, user can retry
 ```
+
+> Until Phase 7.2 ships `/my-bootcamps`, redirect back to `/bootcamps/:packageId` instead — the CTA there already flips to the enrolled state.
 
 **Order Model Changes:**
 ```
-type     → 'course' | 'bootcamp'  (default: 'course')
-batchId  → ref to BootcampBatch, optional (only for type 'bootcamp')
-courseId → optional (only for type 'course')
+type     → 'course' | 'bootcamp'   (default: 'course' — existing rows keep working without a migration)
+courseId → required only when type === 'course'
+batchId  → ref to BootcampBatch, required only when type === 'bootcamp'
 ```
-> One Order model for both transaction kinds. The webhook distinguishes them via `order.type`.
-
-**Data Model — BootcampOrder:**
-> Reuse the existing `Order` model with added `type` and `batchId` fields.
+> `courseId` is currently `required: true`; leaving it that way makes every bootcamp order fail Mongoose validation. Use a conditional `required` function on both fields. Add an index `[userId, batchId, status]` to mirror the existing `[userId, courseId, status]` one — it serves the pending-order reuse lookup.
 
 **Data Model — BootcampEnrollment (NEW):**
 ```
 userId      → ref to User
-packageId   → ref to BootcampPackage (denormalized)
+packageId   → ref to BootcampPackage (denormalized from batch.packageId)
 batchId     → ref to BootcampBatch
-orderId     → ref to Order, optional (null when free)
+orderId     → ref to Order
 enrolledAt  → Date
 ```
-> Unique index on `[userId, batchId]`.
+> Unique index on `[userId, batchId]`. Upsert-safe, so a webhook retry plus a manual verify cannot produce two records.
+
+**create-order guard rules:**
+
+| Condition                                                       | Response |
+|-----------------------------------------------------------------|----------|
+| `batchId` missing                                                | 400 `batchId is required.` |
+| Batch not found                                                  | 404 `Batch not found.` |
+| Parent package `status !== 'open'`                               | 400 `Pendaftaran bootcamp ini belum dibuka.` |
+| `quota_used_percentage >= 100`                                   | 400 `Kuota batch ini sudah penuh.` |
+| `BootcampEnrollment` exists for `[userId, batchId]`              | 409 `Kamu sudah terdaftar di batch ini.` |
+| Pending order exists for `[userId, batchId]`                     | 200 — return the existing `snap_token` + `midtrans_order_id` |
+| Otherwise                                                        | 201 — new Order + fresh Snap token |
+
+**Ripple effects — existing code that breaks quietly once `Order` carries two types:**
+
+| # | File | What breaks | Fix |
+|---|------|-------------|-----|
+| 1 | `be-server/src/models/Order.ts` | `courseId: required: true` rejects every bootcamp order | Conditional `required` per `type` |
+| 2 | `be-server/src/controllers/orderController.ts` → `getMyOrders` | Filters out orders whose populated `courseId` is null → **every bootcamp order vanishes from Purchase History** | Populate `batchId` (+ its package) as well; drop only orders whose own type's ref is missing |
+| 3 | `be-server/src/controllers/admin/dashboardAdminController.ts` → `getRevenueReport` | `topCourses` groups by `$courseId`; bootcamp orders collapse into one `_id: null` bucket rendered as "(course telah dihapus)" | Scope that `$match` with `type: { $ne: 'bootcamp' }` — orders created before the field existed have no `type` at all, so `type: 'course'` would drop them — and add a parallel `topBootcamps` aggregation over `type: 'bootcamp'` |
+| 4 | same file → `getDashboardStats` | `recentOrders` populates only `courseId`, so a bootcamp order shows as a deleted course | Populate both refs, pick the label by `type` |
+| 5 | same file, header comment | "Bootcamp belum punya alur checkout" becomes false; `revenue.allTime` / `thisMonth` now mix both product types | Update the comment; label the figure as total revenue in `RevenueView.vue` |
+| 6 | `be-server/src/controllers/admin/userAdminController.ts` → `getUserDetail` | Order list populates `courseId` only, while `total_spent` already sums every paid order → the list and the total disagree | Same type-aware populate as #2 |
+| 7 | `fe-apps/src/types/orders.ts` + `views/user/PurchaseHistoryView.vue` | Reads `order.courseId.title` / `.cover_url` unconditionally → runtime error on a bootcamp row | Add `type` + `batchId` to `MyOrder`, branch the card on `type` |
+| 8 | `fe-apps/src/composables/bootcamps/useBootcampDetail.ts` | `handleRegister()` still ends at the `// Phase 4: buka modal checkout` stub; the view prints "Checkout & pembayaran tersedia segera" | Wire in `useBootcampCheckout`, drop the placeholder copy |
+
+> API shape change, both consumed by the admin FE: `GET /api/admin/dashboard/stats` renames `recentOrders[].course` → `recentOrders[].item` and adds `type`; `GET /api/admin/dashboard/revenue` adds `topBootcamps[]` alongside `topCourses[]`.
+
+> Route-order gotcha: register `GET /api/bootcamps/enrollments/check/:batchId` **before** `GET /api/bootcamps/:id` in `bootcampRoutes.ts`, otherwise `:id` swallows the literal `enrollments` segment and returns 404 "Bootcamp not found".
 
 **BE Tasks:**
-- [ ] Update `Order` model — add `type: 'course' | 'bootcamp'` (default `'course'`), `batchId?: ref`; `courseId` becomes optional
-- [ ] `BootcampEnrollment` model (`userId`, `packageId`, `batchId`, `orderId?`, `enrolledAt`) — unique index `[userId, batchId]`
-- [ ] `POST /api/checkout/bootcamp/create-order` — create BootcampOrder + Snap token
-- [ ] `POST /api/checkout/bootcamp/webhook` — verify signature, update BootcampOrder, upsert BootcampEnrollment
-- [ ] `GET /api/checkout/bootcamp/verify/:orderId` — manual verify fallback to Midtrans
-- [ ] `GET /api/bootcamps/enrollments/check/:batchId` — return `{ isEnrolled: boolean }`
-- [ ] Update `GET /api/bootcamps/:id` — add `isEnrolled` to the response (checks BootcampEnrollment)
+- [x] Update `Order` model — add `type: 'course' | 'bootcamp'` (default `'course'`) + `batchId?`; make `courseId` / `batchId` conditionally required; add index `[userId, batchId, status]`
+- [x] `BootcampEnrollment` model (`userId`, `packageId`, `batchId`, `orderId`, `enrolledAt`) — unique index `[userId, batchId]`
+- [x] `POST /api/checkout/bootcamp/create-order` — guard table above, reuse pending order, return Snap token
+- [x] Refactor `checkoutController.handleWebhook` — after marking the order paid, branch on `order.type` to upsert `Enrollment` or `BootcampEnrollment`
+- [x] Refactor `checkoutController.verifyPayment` — same branch, so the manual fallback works for both types
+- [x] `GET /api/bootcamps/enrollments/check/:batchId` — returns `{ isEnrolled, enrolledAt }`, registered before the `/:id` route
+- [x] Update `getBootcampDetail` — add `optionalProtect`, attach `isEnrolled` per batch + at package level
+- [x] Update `getMyOrders` — type-aware populate (ripple #2)
+- [x] Update `getDashboardStats` + `getRevenueReport` — type-aware recent orders, `topCourses` scoped to `type: 'course'`, new `topBootcamps` (ripple #3, #4, #5)
+- [x] Update `getUserDetail` (admin) — type-aware order populate (ripple #6)
 
 **FE Tasks:**
-- [ ] `src/types/bootcamps.ts` — add `BootcampEnrollment`, `BootcampEnrollmentStatus`
-- [ ] `src/api/bootcamps.ts` — add `createBootcampOrder()`, `verifyBootcampPayment()`, `checkBootcampEnrollment()`
-- [ ] `src/composables/bootcamps/useBootcampCheckout.ts` — load snap.js, createOrder mutation, snap.pay callbacks
-- [ ] `src/composables/bootcamps/useBootcampEnrollment.ts` — polling + timeout + manualVerify
-- [ ] `BootcampDetailView.vue` — update the "Register Now" modal → "Bayar Sekarang" button + useBootcampCheckout
-- [ ] `src/views/bootcamps/CheckoutBootcampResultView.vue` — polling enrollment status + redirect
-- [ ] Add route `/checkout/bootcamp/result` → `CheckoutBootcampResultView`
+- [x] `src/types/bootcamps.ts` — add `isEnrolled` to `BootcampPackage` + `BootcampBatch`, add `BootcampEnrollmentStatus`
+- [x] `src/types/orders.ts` — add `type` + optional `batchId` to `MyOrder`, make `courseId` optional
+- [x] `src/api/bootcamps.ts` — add `createBootcampOrder(batchId)`, `checkBootcampEnrollment(batchId)`
+- [x] `src/composables/checkout/useCheckout.ts` — extract `loadSnapScript()` into `src/utils/snap.ts` so both checkout composables share one loader
+- [x] `src/composables/bootcamps/useBootcampCheckout.ts` — createOrder mutation + `snap.pay` callbacks → `/checkout/bootcamp/result`
+- [x] `src/composables/bootcamps/useBootcampEnrollment.ts` — 2s polling, 30s timeout, `manualVerify` via the shared verify endpoint
+- [x] `useBootcampDetail.ts` — replace the `handleRegister` stub with the checkout call; expose `isEnrolled` for the CTA
+- [x] `BootcampDetailView.vue` — CTA states: Daftar Sekarang / Memproses… / Sudah Terdaftar / disabled; remove the "tersedia segera" note
+- [x] `src/views/bootcamps/CheckoutBootcampResultView.vue` — mirrors `CheckoutResultView` (success / pending / error + polling + manual verify button)
+- [x] `PurchaseHistoryView.vue` — render bootcamp rows (package title + batch title, `Bootcamp` badge)
+- [x] `AdminDashboardView.vue` / `UserDetailView.vue` / `RevenueView.vue` — type-aware product label + `Bootcamp` badge, plus the new "Bootcamp Penyumbang Terbesar" table
+- [x] Add route `/checkout/bootcamp/result` → `CheckoutBootcampResultView` (public routes, under `DefaultLayout`)
+
+**Manual test checklist (Midtrans sandbox):**
+- [ ] Pay a batch with a sandbox card → `BootcampEnrollment` created, CTA flips to the enrolled state
+- [ ] Click "Daftar Sekarang" twice without paying → the second call reuses the same `snap_token`, no duplicate Order
+- [ ] Buy the same batch again → 409; buy a different batch of the same package → allowed
+- [ ] Kill ngrok, pay, wait 30s → timeout state → "Cek Status Pembayaran" → enrollment created via the verify fallback
+- [ ] Purchase History shows both a course order and a bootcamp order without a blank card
+- [ ] Admin → Revenue: bootcamp revenue included in the total, `topCourses` free of `null` rows
 
 ---
 
@@ -2381,7 +2460,7 @@ issuedAt        → Date
 | Method | Endpoint                       | Description                                            | Auth     |
 |--------|--------------------------------|--------------------------------------------------------|----------|
 | GET    | /api/bootcamps                 | List all bootcamp packages (pagination, search, `?status=`, `?sort_type=`, `?order_by=`) | - |
-| GET    | /api/bootcamps/:id             | Bootcamp package detail with nested batches and sessions | -      |
+| GET    | /api/bootcamps/:id             | Bootcamp package detail with nested batches and sessions (optionalProtect — adds `isEnrolled` per batch when authenticated, Phase 7) | -      |
 
 ### Quiz
 
@@ -2403,8 +2482,8 @@ issuedAt        → Date
 | Method | Endpoint                              | Description                                                                          | Auth |
 |--------|---------------------------------------|--------------------------------------------------------------------------------------|------|
 | POST   | /api/checkout/create-order            | Create order + generate Midtrans Snap token (reuses pending order if exists)         | JWT  |
-| POST   | /api/checkout/webhook                 | **Primary** — Midtrans push: verify signature, update Order, upsert Enrollment       | -    |
-| GET    | /api/checkout/verify/:orderId         | **Fallback** — BE pulls status from Midtrans API, upsert Enrollment if settled       | JWT  |
+| POST   | /api/checkout/webhook                 | **Primary** — Midtrans push: verify signature, update Order, upsert Enrollment (branches on `order.type`, Phase 7) | -    |
+| GET    | /api/checkout/verify/:orderId         | **Fallback** — BE pulls status from Midtrans API, upsert Enrollment if settled (branches on `order.type`, Phase 7) | JWT  |
 | GET    | /api/enrollments/check/:courseId      | Check the user's enrollment status — polled by the FE after payment until the webhook fills the DB | JWT  |
 | GET    | /api/enrollments/my-courses           | List enrolled courses + completed_lessons per course (from the Progress collection)  | JWT  |
 
@@ -2471,9 +2550,9 @@ issuedAt        → Date
 | Method | Endpoint                                      | Description                                                          | Auth |
 |--------|-----------------------------------------------|----------------------------------------------------------------------|------|
 | POST   | /api/checkout/bootcamp/create-order           | Create bootcamp order + Snap token (`{ batchId }`)                   | JWT  |
-| POST   | /api/checkout/bootcamp/webhook                | Midtrans push: verify signature, update BootcampOrder, upsert BootcampEnrollment | -  |
-| GET    | /api/checkout/bootcamp/verify/:orderId        | Manual verify fallback to the Midtrans API                           | JWT  |
-| GET    | /api/bootcamps/enrollments/check/:batchId     | Check whether the user is enrolled in this batch                     | JWT  |
+| POST   | /api/checkout/webhook                         | *(shared with course checkout)* — branches on `order.type` to upsert Enrollment or BootcampEnrollment | -    |
+| GET    | /api/checkout/verify/:orderId                 | *(shared with course checkout)* — same branch, used by the manual fallback button | JWT  |
+| GET    | /api/bootcamps/enrollments/check/:batchId     | Check whether the user is enrolled in this batch — must be registered before `/api/bootcamps/:id` | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | List all of the user's bootcamp enrollments                          | JWT  |
 
 ### Certificate (Phase 7)
@@ -2711,7 +2790,7 @@ issuedAt        → Date
 | `quizquestions`    | `lessonId`                                   | `correct_index` never returned to FE       |
 | `quizattempts`     | `[userId, lessonId]`                         | Multiple attempts allowed; `my-attempt` returns latest |
 | `tasksubmissions`  | `[userId, lessonId]` (unique)                | One submission per user per lesson         |
-| `orders`               | `midtrans_order_id` (unique), `[userId, courseId, status]`, `[status, paidAt]` | `type: 'course'\|'bootcamp'`; `batchId` populated for bootcamp orders (Phase 7). The `[status, paidAt]` index serves the revenue report |
+| `orders`               | `midtrans_order_id` (unique), `[userId, courseId, status]`, `[userId, batchId, status]` (Phase 7), `[status, paidAt]` | `type: 'course'\|'bootcamp'`; `courseId` / `batchId` are conditionally required per `type` (Phase 7). The `[status, paidAt]` index serves the revenue report |
 | `enrollments`          | `[userId, courseId]` (unique)                | Created after payment settlement; `orderId` null for free courses    |
 | `bootcamppackages`     | -                                            | `mentors[]` embedded with a `userId` ref to User (role: mentor) + `occupation`; there is no separate mentor collection |
 | `bootcampbatches`      | `packageId`                                  | `starting_price` aggregated from cheapest batch                      |

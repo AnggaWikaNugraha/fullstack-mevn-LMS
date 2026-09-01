@@ -35,6 +35,11 @@ const publicRoutes: RouteRecordRaw[] = [
         name: 'checkout-result',
         component: () => import('@/views/checkout/CheckoutResultView.vue'),
       },
+      {
+        path: 'checkout/bootcamp/result',
+        name: 'checkout-bootcamp-result',
+        component: () => import('@/views/bootcamps/CheckoutBootcampResultView.vue'),
+      },
     ],
   },
 ];

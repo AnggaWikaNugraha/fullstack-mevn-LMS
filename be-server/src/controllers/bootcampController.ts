@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import BootcampPackage from '../models/BootcampPackage';
 import BootcampBatch from '../models/BootcampBatch';
 import BootcampSession from '../models/BootcampSession';
+import BootcampEnrollment from '../models/BootcampEnrollment';
+import { AuthRequest } from '../middlewares/authMiddleware';
 
 // ─── Daftar Bootcamp ──────────────────────────────────────────────────────────
 
@@ -61,7 +63,7 @@ export const getBootcamps = async (req: Request, res: Response, next: NextFuncti
 // Mengembalikan package + semua batch beserta sesinya dalam satu response.
 // Switching antar batch dilakukan client-side tanpa refetch.
 
-export const getBootcampDetail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getBootcampDetail = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -79,10 +81,22 @@ export const getBootcampDetail = async (req: Request, res: Response, next: NextF
     // Ambil semua sesi sekaligus pakai $in — 1 query untuk semua batch
     const sessions = await BootcampSession.find({ batchId: { $in: batchIds } }).sort({ session_date: 1 });
 
+    // Endpoint ini pakai optionalProtect: tamu tetap dapat balasan yang sama,
+    // hanya saja semua isEnrolled bernilai false
+    const enrolledBatchIds = new Set<string>();
+    if (req.userId) {
+      const enrollments = await BootcampEnrollment.find({
+        userId: req.userId,
+        batchId: { $in: batchIds },
+      }).select('batchId');
+      enrollments.forEach((e) => enrolledBatchIds.add(e.batchId.toString()));
+    }
+
     // Pasangkan sesi ke batch masing-masing
     const batchesWithSessions = batches.map((batch) => ({
       ...batch.toJSON(),
       sessions: sessions.filter((s) => s.batchId.toString() === batch._id.toString()),
+      isEnrolled: enrolledBatchIds.has(batch._id.toString()),
     }));
 
     res.status(200).json({
@@ -90,8 +104,32 @@ export const getBootcampDetail = async (req: Request, res: Response, next: NextF
       data: {
         bootcamp: {
           ...bootcamp.toJSON(),
+          // Di tingkat package artinya "terdaftar di salah satu batch",
+          // dipakai untuk menampilkan pintasan ke Bootcamp Saya
+          isEnrolled: enrolledBatchIds.size > 0,
           batches: batchesWithSessions,
         },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Cek Status Enrollment Bootcamp ───────────────────────────────────────────
+// Dipakai FE untuk polling setelah pembayaran, menunggu webhook mengisi DB
+
+export const checkBootcampEnrollment = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { batchId } = req.params;
+
+    const enrollment = await BootcampEnrollment.findOne({ userId: req.userId, batchId });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        isEnrolled: !!enrollment,
+        enrolledAt: enrollment?.enrolledAt ?? null,
       },
     });
   } catch (err) {

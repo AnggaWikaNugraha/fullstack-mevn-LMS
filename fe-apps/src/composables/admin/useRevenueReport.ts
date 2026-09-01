@@ -21,6 +21,7 @@ export function useRevenueReport() {
   const series = computed(() => data.value?.series ?? []);
   const summary = computed(() => data.value?.summary);
   const topCourses = computed(() => data.value?.topCourses ?? []);
+  const topBootcamps = computed(() => data.value?.topBootcamps ?? []);
   const year = computed(() => data.value?.year ?? null);
   const availableYears = computed(() => data.value?.availableYears ?? []);
 
@@ -43,7 +44,7 @@ export function useRevenueReport() {
   }
 
   return {
-    bars, series, summary, topCourses,
+    bars, series, summary, topCourses, topBootcamps,
     year, availableYears, selectYear,
     hasData, maxTotal,
     isLoading, isFetching, isError,

@@ -3,12 +3,14 @@ import { useRouter, useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import { useAuthStore } from '@/stores/authStore';
 import { getBootcampDetail } from '@/api/bootcamps';
+import { useBootcampCheckout } from './useBootcampCheckout';
 import type { BootcampBatch } from '@/types/bootcamps';
 
 export function useBootcampDetail(id: string) {
   const router = useRouter();
   const route = useRoute();
   const authStore = useAuthStore();
+  const { startCheckout, isPending: isCheckoutPending } = useBootcampCheckout(id);
 
   // Indeks batch yang sedang dipilih — switching dilakukan client-side tanpa refetch
   const selectedBatchIndex = ref(0);
@@ -42,18 +44,28 @@ export function useBootcampDetail(id: string) {
     }).format(new Date(dateStr));
   }
 
-  // Tombol daftar — cek login, redirect jika belum
+  // Tombol daftar — cek login dulu, lalu buka popup pembayaran Midtrans
   function handleRegister() {
     if (!authStore.user) {
       localStorage.setItem('redirect_after_login', route.fullPath);
       router.push('/auth/login');
       return;
     }
-    // Phase 4: buka modal checkout
+    if (!selectedBatch.value || ctaState.value.disabled) return;
+    startCheckout(selectedBatch.value._id);
   }
 
-  const isRegisterDisabled = (status: string, quota: number) =>
-    status !== 'open' || quota >= 100;
+  // Satu sumber kebenaran untuk label dan keadaan tombol, diurutkan dari
+  // kondisi yang paling spesifik ke yang paling umum
+  const ctaState = computed<{ label: string; disabled: boolean }>(() => {
+    if (!selectedBatch.value) return { label: 'Belum Ada Batch', disabled: true };
+    if (selectedBatch.value.isEnrolled) return { label: 'Sudah Terdaftar', disabled: true };
+    if (isCheckoutPending.value) return { label: 'Memproses...', disabled: true };
+    if (bootcamp.value?.status === 'coming_soon') return { label: 'Segera Hadir', disabled: true };
+    if (bootcamp.value?.status === 'closed') return { label: 'Pendaftaran Ditutup', disabled: true };
+    if (selectedBatch.value.quota_used_percentage >= 100) return { label: 'Kuota Penuh', disabled: true };
+    return { label: 'Daftar Sekarang', disabled: false };
+  });
 
   return {
     bootcamp,
@@ -64,7 +76,7 @@ export function useBootcampDetail(id: string) {
     setSelectedBatch,
     formatSessionDate,
     handleRegister,
-    isRegisterDisabled,
+    ctaState,
     isLoading,
     isError,
   };

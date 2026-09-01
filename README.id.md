@@ -60,7 +60,9 @@ src/
 │   │   └── useTask.ts         # Query submission task + mutation submit
 │   ├── bootcamps/
 │   │   ├── useBootcamps.ts
-│   │   └── useBootcampDetail.ts
+│   │   ├── useBootcampDetail.ts
+│   │   ├── useBootcampCheckout.ts # load snap.js, createOrder per batch, callback snap.pay
+│   │   └── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
 │   ├── checkout/
 │   │   ├── useCheckout.ts     # memuat snap.js, createOrder, callback snap.pay
 │   │   └── useEnrollment.ts   # polling + timeout + fallback manualVerify
@@ -112,14 +114,16 @@ src/
 │   ├── orders.ts              # MyOrder, MyOrdersResponse
 │   └── router.d.ts            # Perluasan RouteMeta: requiresAuth, requiresAdmin, guestOnly
 ├── utils/
-│   └── format.ts              # formatRupiah, formatDate, progressPercent
+│   ├── format.ts              # formatRupiah, formatDate, progressPercent
+│   └── snap.ts                # loadSnapScript() — dipakai bersama checkout course & bootcamp
 ├── views/
 │   ├── HomeView.vue
 │   ├── courses/
 │   │   └── CourseDetailView.vue
 │   ├── bootcamps/
 │   │   ├── BootcampsView.vue
-│   │   └── BootcampDetailView.vue
+│   │   ├── BootcampDetailView.vue
+│   │   └── CheckoutBootcampResultView.vue
 │   ├── checkout/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
@@ -221,6 +225,7 @@ src/
 │   ├── TaskSubmission.ts   # submission_url, note, status — unik [userId, lessonId]
 │   ├── Order.ts            # amount, status, snap_token, midtrans_order_id, paidAt
 │   ├── Enrollment.ts       # userId, courseId, orderId — unik [userId, courseId]
+│   ├── BootcampEnrollment.ts # userId, packageId, batchId, orderId — unik [userId, batchId]
 │   ├── BootcampPackage.ts
 │   ├── BootcampBatch.ts
 │   └── BootcampSession.ts
@@ -313,7 +318,7 @@ src/
 | Admin — Review Task                               | ✅ Selesai      |
 | Admin — Manajemen Order                           | 🔄 Akan Datang  |
 | Admin — Statistik Dashboard & Laporan Pendapatan  | ✅ Selesai      |
-| Checkout & Pembayaran Bootcamp (Midtrans)         | 🔄 Akan Datang  |
+| Checkout & Pembayaran Bootcamp (Midtrans)         | ✅ Selesai      |
 | Bootcamp Saya                                     | 🔄 Akan Datang  |
 | Sertifikat Kelulusan Course (unduh PDF)           | 🔄 Akan Datang  |
 | Live Session (Agora RTC)                          | 🔄 Akan Datang  |
@@ -2173,88 +2178,162 @@ sama sekali tidak menyentuh model bootcamp, jadi belum ada pendapatan bootcamp y
 
 #### 7.1 Checkout & Pembayaran Bootcamp
 
+> Memakai ulang jalur checkout Phase 4: model `Order` yang sama, alur Midtrans Snap yang sama, pasangan webhook + verifikasi manual yang sama. Yang baru adalah sasaran enrollment kedua — `BootcampEnrollment`, dikunci per **batch** — dan pembeda `type` pada `Order`.
+
+**Keputusan desain:**
+
+| Pertanyaan                          | Pilihan                                                        | Alasan                                                                                                                                                                  |
+|-------------------------------------|----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Satu model `Order` atau dua?        | Satu — `Order.type: 'course' \| 'bootcamp'`                    | Riwayat pembelian, daftar order admin, dan laporan pendapatan sudah mengagregasi koleksi `orders`. Koleksi kedua berarti menduplikasi seluruh agregasi itu.                |
+| Satu webhook atau dua?              | Satu — `POST /api/checkout/webhook` yang ada, bercabang lewat `order.type` | Midtrans hanya mengizinkan **satu** Notification URL per akun merchant. Endpoint webhook kedua tidak akan pernah dipanggil.                                |
+| Enrollment per package atau batch?  | Per batch — indeks unik `[userId, batchId]`                    | User bisa membeli Batch 1 sekarang dan Batch 2 nanti. Sesi (dan halaman live session nanti) menempel pada batch. `packageId` didenormalisasi agar "Bootcamp Saya" tidak perlu lookup tambahan. |
+| Bootcamp gratis?                    | Tidak didukung                                                 | `BootcampBatch.price` wajib dan tidak ada flag `isFree` — semua batch lewat checkout. Tidak ada jalur enrollment lazy seperti course gratis.                               |
+| Penegakan kuota                     | Longgar — `quota_used_percentage` tetap field manual admin      | Nilainya persentase tampilan, bukan hitungan kursi. Checkout diblokir saat ≥ 100% dan saat package bukan `open`, tetapi pembayaran tidak menggeser bar itu.                |
+
 **Alur:**
 
 ```
 User membuka /bootcamps/:id
           |
           ▼
-    GET /api/bootcamps/:id
-    Balasan: { ...packageData, isEnrolled: boolean (memeriksa apakah user sudah terdaftar di salah satu batch) }
+    GET /api/bootcamps/:id  (optionalProtect — balasan untuk tamu tetap sama)
+    Balasan: { bootcamp: { ...packageData, isEnrolled, batches: [{ ...batch, isEnrolled }] } }
           |
-          ▼
-    User menekan "Register Now" → modal terbuka (info batch + harga)
-          |
-          ▼
-    User menekan "Bayar Sekarang"
-          |
-          ▼
-    POST /api/checkout/bootcamp/create-order  { batchId }
-    ├─→ batch tidak ditemukan   → 404
-    ├─→ sudah terdaftar         → 409
-    ├─→ ada order pending       → pakai ulang snap_token
-    └─→ buat BootcampOrder baru (status: 'pending') + buat Snap token
-          |
-          ▼
-    FE: window.snap.pay(snap_token, callbacks)
-          |
-    User membayar
-          |
-          ▼
-    ┌─────────────────────────────────────────────────┐
-    │  Dua jalur berjalan paralel                      │
-    └─────────────────────────────────────────────────┘
-          ↓                              ↓
-    Callback Snap (FE)            Webhook POST Midtrans (server ke server)
-    router.push ke                POST /api/checkout/bootcamp/webhook
-    /checkout/bootcamp/result     1. Verifikasi signature_key SHA512
-    ?order_id=&batch_id=          2. BootcampOrder.status = 'paid', paidAt = sekarang
-    &result=success               3. BootcampEnrollment.findOneAndUpdate (upsert)
-          ↓
-    CheckoutBootcampResultView.vue
-    polling GET /api/bootcamps/enrollments/check/:batchId setiap 2 detik
-    ├─→ isEnrolled: true  → alihkan ke /bootcamps/:packageId ✅
-    └─→ isEnrolled: false → tunggu webhook
+          ├─→ batch.isEnrolled = true   → CTA jadi "Lihat Bootcamp Saya" → /my-bootcamps
+          ├─→ status ≠ 'open' / kuota ≥ 100 → CTA nonaktif (logika isRegisterDisabled yang ada)
+          └─→ selain itu                 → CTA "Daftar Sekarang"
+                    |
+                    ▼
+              Belum login → simpan redirect_after_login → /auth/login   (perilaku yang sudah ada)
+              Sudah login → useBootcampCheckout(batchId).startCheckout()
+                    |
+                    ▼
+              POST /api/checkout/bootcamp/create-order  { batchId }
+              ├─→ batch tidak ditemukan   → 404
+              ├─→ package bukan 'open'    → 400
+              ├─→ sudah terdaftar         → 409
+              ├─→ ada order pending       → pakai ulang snap_token-nya (tanpa panggilan baru ke Midtrans)
+              └─→ buat Order { type: 'bootcamp', batchId, amount: batch.price, status: 'pending' }
+                  + buat Snap token
+                    |
+                    ▼
+              FE: loadSnapScript() (dipakai bersama useCheckout) → window.snap.pay(snap_token, callbacks)
+                    |
+              User membayar
+                    |
+                    ▼
+              ┌─────────────────────────────────────────────────┐
+              │  Dua jalur berjalan paralel                      │
+              └─────────────────────────────────────────────────┘
+                    ↓                              ↓
+          Callback Snap (FE)            Webhook POST Midtrans (server ke server)
+          router.push ke                POST /api/checkout/webhook   ← endpoint BERSAMA
+          /checkout/bootcamp/result     1. Verifikasi signature_key SHA512
+          ?order_id=&batch_id=          2. Order.status = 'paid', paidAt = sekarang
+          &package_id=                  3. switch (order.type)
+          &result=success/pending          ├─ 'course'   → upsert Enrollment
+                    ↓                       └─ 'bootcamp' → upsert BootcampEnrollment
+          CheckoutBootcampResultView.vue                    { userId, packageId, batchId, orderId }
+          useBootcampEnrollment(batchId).startPolling(...)
+          setiap 2 detik, maksimal 15x (30 detik):
+            GET /api/bootcamps/enrollments/check/:batchId
+            ├─→ isEnrolled: true   → clearInterval → router.push /my-bootcamps ✅
+            └─→ isEnrolled: false  → tunggu webhook, ulangi
+                    |
+              (setelah 30 detik webhook tidak kunjung datang)
+                    ↓
+              isTimedOut = true → tampilkan tombol "Cek Status Pembayaran"
+                    |
+              user menekan → manualVerify(orderId)
+                    ↓
+              GET /api/checkout/verify/:orderId   ← endpoint BERSAMA, bercabang lewat order.type
+              BE bertanya langsung ke Midtrans API
+              ├─→ lunas      → upsert BootcampEnrollment → router.push /my-bootcamps ✅
+              └─→ belum      → tombol aktif kembali, user bisa coba lagi
 ```
+
+> Selama `/my-bootcamps` (Phase 7.2) belum ada, alihkan kembali ke `/bootcamps/:packageId` — CTA di sana sudah berubah ke keadaan terdaftar.
 
 **Perubahan Model Order:**
 ```
-type     → 'course' | 'bootcamp'  (bawaan: 'course')
-batchId  → ref ke BootcampBatch, opsional (hanya untuk type 'bootcamp')
-courseId → opsional (hanya untuk type 'course')
+type     → 'course' | 'bootcamp'   (bawaan: 'course' — baris lama tetap jalan tanpa migrasi)
+courseId → wajib hanya saat type === 'course'
+batchId  → ref ke BootcampBatch, wajib hanya saat type === 'bootcamp'
 ```
-> Satu model Order untuk kedua jenis transaksi. Webhook membedakannya lewat `order.type`.
-
-**Model Data — BootcampOrder:**
-> Memakai ulang model `Order` yang sudah ada dengan tambahan field `type` dan `batchId`.
+> `courseId` saat ini `required: true`; kalau dibiarkan, setiap order bootcamp gagal validasi Mongoose. Pakai fungsi `required` bersyarat pada kedua field. Tambahkan indeks `[userId, batchId, status]` menyerupai `[userId, courseId, status]` yang sudah ada — indeks itu melayani lookup pemakaian ulang order pending.
 
 **Model Data — BootcampEnrollment (BARU):**
 ```
 userId      → ref ke User
-packageId   → ref ke BootcampPackage (didenormalisasi)
+packageId   → ref ke BootcampPackage (didenormalisasi dari batch.packageId)
 batchId     → ref ke BootcampBatch
-orderId     → ref ke Order, opsional (null bila gratis)
+orderId     → ref ke Order
 enrolledAt  → Date
 ```
-> Indeks unik pada `[userId, batchId]`.
+> Indeks unik pada `[userId, batchId]`. Aman untuk upsert, sehingga webhook yang diulang plus verifikasi manual tidak menghasilkan dua record.
+
+**Aturan penjagaan create-order:**
+
+| Kondisi                                                          | Balasan |
+|------------------------------------------------------------------|---------|
+| `batchId` tidak dikirim                                           | 400 `batchId is required.` |
+| Batch tidak ditemukan                                             | 404 `Batch not found.` |
+| Package induk `status !== 'open'`                                 | 400 `Pendaftaran bootcamp ini belum dibuka.` |
+| `quota_used_percentage >= 100`                                    | 400 `Kuota batch ini sudah penuh.` |
+| `BootcampEnrollment` sudah ada untuk `[userId, batchId]`          | 409 `Kamu sudah terdaftar di batch ini.` |
+| Ada order pending untuk `[userId, batchId]`                       | 200 — kembalikan `snap_token` + `midtrans_order_id` yang sudah ada |
+| Selain itu                                                        | 201 — Order baru + Snap token baru |
+
+**Efek rambatan — kode lama yang diam-diam rusak begitu `Order` punya dua jenis:**
+
+| # | Berkas | Yang rusak | Perbaikan |
+|---|--------|------------|-----------|
+| 1 | `be-server/src/models/Order.ts` | `courseId: required: true` menolak setiap order bootcamp | `required` bersyarat menurut `type` |
+| 2 | `be-server/src/controllers/orderController.ts` → `getMyOrders` | Menyaring order yang `courseId` hasil populate-nya null → **semua order bootcamp hilang dari Riwayat Pembelian** | Populate `batchId` (beserta package-nya) juga; buang hanya order yang ref sesuai type-nya hilang |
+| 3 | `be-server/src/controllers/admin/dashboardAdminController.ts` → `getRevenueReport` | `topCourses` mengelompokkan berdasarkan `$courseId`; order bootcamp menumpuk di satu keranjang `_id: null` yang tampil sebagai "(course telah dihapus)" | Batasi `$match` itu dengan `type: { $ne: 'bootcamp' }` — order yang dibuat sebelum field ini ada tidak menyimpan `type` sama sekali, jadi `type: 'course'` akan membuangnya — dan tambahkan agregasi `topBootcamps` untuk `type: 'bootcamp'` |
+| 4 | berkas sama → `getDashboardStats` | `recentOrders` hanya populate `courseId`, sehingga order bootcamp tampil sebagai course terhapus | Populate kedua ref, pilih label menurut `type` |
+| 5 | berkas sama, komentar kepala | "Bootcamp belum punya alur checkout" jadi tidak benar; `revenue.allTime` / `thisMonth` kini mencampur dua jenis produk | Perbarui komentarnya; beri label pendapatan total di `RevenueView.vue` |
+| 6 | `be-server/src/controllers/admin/userAdminController.ts` → `getUserDetail` | Daftar order hanya populate `courseId`, padahal `total_spent` sudah menjumlahkan semua order lunas → daftar dan totalnya tidak cocok | Populate sadar-type yang sama seperti #2 |
+| 7 | `fe-apps/src/types/orders.ts` + `views/user/PurchaseHistoryView.vue` | Membaca `order.courseId.title` / `.cover_url` tanpa syarat → error runtime pada baris bootcamp | Tambahkan `type` + `batchId` ke `MyOrder`, cabangkan kartunya menurut `type` |
+| 8 | `fe-apps/src/composables/bootcamps/useBootcampDetail.ts` | `handleRegister()` masih berhenti di stub `// Phase 4: buka modal checkout`; tampilan mencetak "Checkout & pembayaran tersedia segera" | Sambungkan `useBootcampCheckout`, hapus teks sementara itu |
+
+> Perubahan bentuk API, keduanya dipakai FE admin: `GET /api/admin/dashboard/stats` mengganti nama `recentOrders[].course` → `recentOrders[].item` dan menambah `type`; `GET /api/admin/dashboard/revenue` menambah `topBootcamps[]` di samping `topCourses[]`.
+
+> Jebakan urutan route: daftarkan `GET /api/bootcamps/enrollments/check/:batchId` **sebelum** `GET /api/bootcamps/:id` di `bootcampRoutes.ts`, kalau tidak `:id` akan menelan segmen `enrollments` dan mengembalikan 404 "Bootcamp not found".
 
 **Tugas BE:**
-- [ ] Perbarui model `Order` — tambahkan `type: 'course' | 'bootcamp'` (bawaan `'course'`), `batchId?: ref`; `courseId` menjadi opsional
-- [ ] Model `BootcampEnrollment` (`userId`, `packageId`, `batchId`, `orderId?`, `enrolledAt`) — indeks unik `[userId, batchId]`
-- [ ] `POST /api/checkout/bootcamp/create-order` — buat BootcampOrder + token Snap
-- [ ] `POST /api/checkout/bootcamp/webhook` — verifikasi tanda tangan, perbarui BootcampOrder, upsert BootcampEnrollment
-- [ ] `GET /api/checkout/bootcamp/verify/:orderId` — fallback verifikasi manual ke Midtrans
-- [ ] `GET /api/bootcamps/enrollments/check/:batchId` — kembalikan `{ isEnrolled: boolean }`
-- [ ] Perbarui `GET /api/bootcamps/:id` — tambahkan `isEnrolled` ke balasan (memeriksa BootcampEnrollment)
+- [x] Perbarui model `Order` — tambahkan `type: 'course' | 'bootcamp'` (bawaan `'course'`) + `batchId?`; buat `courseId` / `batchId` wajib bersyarat; tambahkan indeks `[userId, batchId, status]`
+- [x] Model `BootcampEnrollment` (`userId`, `packageId`, `batchId`, `orderId`, `enrolledAt`) — indeks unik `[userId, batchId]`
+- [x] `POST /api/checkout/bootcamp/create-order` — tabel penjagaan di atas, pakai ulang order pending, kembalikan Snap token
+- [x] Refaktor `checkoutController.handleWebhook` — setelah order ditandai lunas, cabangkan `order.type` untuk upsert `Enrollment` atau `BootcampEnrollment`
+- [x] Refaktor `checkoutController.verifyPayment` — percabangan yang sama, agar fallback manual bekerja untuk kedua jenis
+- [x] `GET /api/bootcamps/enrollments/check/:batchId` — kembalikan `{ isEnrolled, enrolledAt }`, didaftarkan sebelum route `/:id`
+- [x] Perbarui `getBootcampDetail` — tambahkan `optionalProtect`, sisipkan `isEnrolled` per batch + di tingkat package
+- [x] Perbarui `getMyOrders` — populate sadar-type (rambatan #2)
+- [x] Perbarui `getDashboardStats` + `getRevenueReport` — recent order sadar-type, `topCourses` dibatasi `type: 'course'`, tambah `topBootcamps` (rambatan #3, #4, #5)
+- [x] Perbarui `getUserDetail` (admin) — populate order sadar-type (rambatan #6)
 
 **Tugas FE:**
-- [ ] `src/types/bootcamps.ts` — tambahkan `BootcampEnrollment`, `BootcampEnrollmentStatus`
-- [ ] `src/api/bootcamps.ts` — tambahkan `createBootcampOrder()`, `verifyBootcampPayment()`, `checkBootcampEnrollment()`
-- [ ] `src/composables/bootcamps/useBootcampCheckout.ts` — memuat snap.js, mutation createOrder, callback snap.pay
-- [ ] `src/composables/bootcamps/useBootcampEnrollment.ts` — polling + timeout + manualVerify
-- [ ] `BootcampDetailView.vue` — perbarui modal "Register Now" → tombol "Bayar Sekarang" + useBootcampCheckout
-- [ ] `src/views/bootcamps/CheckoutBootcampResultView.vue` — polling status enrollment + pengalihan
-- [ ] Tambahkan route `/checkout/bootcamp/result` → `CheckoutBootcampResultView`
+- [x] `src/types/bootcamps.ts` — tambahkan `isEnrolled` ke `BootcampPackage` + `BootcampBatch`, tambahkan `BootcampEnrollmentStatus`
+- [x] `src/types/orders.ts` — tambahkan `type` + `batchId` opsional ke `MyOrder`, jadikan `courseId` opsional
+- [x] `src/api/bootcamps.ts` — tambahkan `createBootcampOrder(batchId)`, `checkBootcampEnrollment(batchId)`
+- [x] `src/composables/checkout/useCheckout.ts` — pindahkan `loadSnapScript()` ke `src/utils/snap.ts` agar kedua composable checkout memakai satu loader
+- [x] `src/composables/bootcamps/useBootcampCheckout.ts` — mutation createOrder + callback `snap.pay` → `/checkout/bootcamp/result`
+- [x] `src/composables/bootcamps/useBootcampEnrollment.ts` — polling 2 detik, timeout 30 detik, `manualVerify` lewat endpoint verify bersama
+- [x] `useBootcampDetail.ts` — ganti stub `handleRegister` dengan panggilan checkout; ekspos `isEnrolled` untuk CTA
+- [x] `BootcampDetailView.vue` — keadaan CTA: Daftar Sekarang / Memproses… / Sudah Terdaftar / nonaktif; hapus catatan "tersedia segera"
+- [x] `src/views/bootcamps/CheckoutBootcampResultView.vue` — mencerminkan `CheckoutResultView` (sukses / pending / gagal + polling + tombol verifikasi manual)
+- [x] `PurchaseHistoryView.vue` — tampilkan baris bootcamp (judul package + judul batch, badge `Bootcamp`)
+- [x] `AdminDashboardView.vue` / `UserDetailView.vue` / `RevenueView.vue` — label produk sadar-type + badge `Bootcamp`, ditambah tabel baru "Bootcamp Penyumbang Terbesar"
+- [x] Tambahkan route `/checkout/bootcamp/result` → `CheckoutBootcampResultView` (route publik, di bawah `DefaultLayout`)
+
+**Checklist uji manual (sandbox Midtrans):**
+- [ ] Bayar sebuah batch dengan kartu sandbox → `BootcampEnrollment` terbuat, CTA berubah ke keadaan terdaftar
+- [ ] Tekan "Daftar Sekarang" dua kali tanpa membayar → panggilan kedua memakai ulang `snap_token` yang sama, tidak ada Order ganda
+- [ ] Beli batch yang sama lagi → 409; beli batch lain dari package yang sama → diizinkan
+- [ ] Matikan ngrok, bayar, tunggu 30 detik → keadaan timeout → "Cek Status Pembayaran" → enrollment terbuat lewat fallback verify
+- [ ] Riwayat Pembelian menampilkan order course dan order bootcamp tanpa kartu kosong
+- [ ] Admin → Pendapatan: pendapatan bootcamp ikut di total, `topCourses` bersih dari baris `null`
 
 ---
 
@@ -2377,7 +2456,7 @@ issuedAt        → Date
 | Method | Endpoint                       | Keterangan                                             | Auth     |
 |--------|--------------------------------|--------------------------------------------------------|----------|
 | GET    | /api/bootcamps                 | Daftar semua package bootcamp (paginasi, pencarian, `?status=`, `?sort_type=`, `?order_by=`) | - |
-| GET    | /api/bootcamps/:id             | Detail package bootcamp beserta batch dan session bersarang | -   |
+| GET    | /api/bootcamps/:id             | Detail package bootcamp beserta batch dan session bersarang (optionalProtect — menambah `isEnrolled` per batch bila sudah login, Phase 7) | -   |
 
 ### Quiz
 
@@ -2399,8 +2478,8 @@ issuedAt        → Date
 | Method | Endpoint                              | Keterangan                                                                           | Auth |
 |--------|---------------------------------------|--------------------------------------------------------------------------------------|------|
 | POST   | /api/checkout/create-order            | Buat order + token Snap Midtrans (memakai ulang order pending bila ada)              | JWT  |
-| POST   | /api/checkout/webhook                 | **Utama** — dorongan Midtrans: verifikasi tanda tangan, perbarui Order, upsert Enrollment | - |
-| GET    | /api/checkout/verify/:orderId         | **Fallback** — BE menarik status dari API Midtrans, upsert Enrollment bila settled   | JWT  |
+| POST   | /api/checkout/webhook                 | **Utama** — dorongan Midtrans: verifikasi tanda tangan, perbarui Order, upsert Enrollment (bercabang lewat `order.type`, Phase 7) | - |
+| GET    | /api/checkout/verify/:orderId         | **Fallback** — BE menarik status dari API Midtrans, upsert Enrollment bila settled (bercabang lewat `order.type`, Phase 7) | JWT  |
 | GET    | /api/enrollments/check/:courseId      | Periksa status enrollment user — dipolling FE setelah pembayaran sampai webhook mengisi basis data | JWT |
 | GET    | /api/enrollments/my-courses           | Daftar course yang diikuti + completed_lessons per course (dari koleksi Progress)    | JWT  |
 
@@ -2467,9 +2546,9 @@ issuedAt        → Date
 | Method | Endpoint                                      | Keterangan                                                           | Auth |
 |--------|-----------------------------------------------|----------------------------------------------------------------------|------|
 | POST   | /api/checkout/bootcamp/create-order           | Buat order bootcamp + token Snap (`{ batchId }`)                     | JWT  |
-| POST   | /api/checkout/bootcamp/webhook                | Dorongan Midtrans: verifikasi tanda tangan, perbarui BootcampOrder, upsert BootcampEnrollment | - |
-| GET    | /api/checkout/bootcamp/verify/:orderId        | Fallback verifikasi manual ke API Midtrans                           | JWT  |
-| GET    | /api/bootcamps/enrollments/check/:batchId     | Periksa apakah user terdaftar di batch ini                           | JWT  |
+| POST   | /api/checkout/webhook                         | *(dipakai bersama checkout course)* — bercabang lewat `order.type` untuk upsert Enrollment atau BootcampEnrollment | -    |
+| GET    | /api/checkout/verify/:orderId                 | *(dipakai bersama checkout course)* — percabangan sama, dipakai tombol fallback manual | JWT  |
+| GET    | /api/bootcamps/enrollments/check/:batchId     | Periksa apakah user terdaftar di batch ini — wajib didaftarkan sebelum `/api/bootcamps/:id` | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | Daftar semua enrollment bootcamp milik user                          | JWT  |
 
 ### Sertifikat (Phase 7)
@@ -2707,7 +2786,7 @@ issuedAt        → Date
 | `quizquestions`    | `lessonId`                                   | `correct_index` tidak pernah dikembalikan ke FE |
 | `quizattempts`     | `[userId, lessonId]`                         | Percobaan berkali-kali diizinkan; `my-attempt` mengembalikan yang terakhir |
 | `tasksubmissions`  | `[userId, lessonId]` (unik)                  | Satu submission per user per lesson        |
-| `orders`               | `midtrans_order_id` (unik), `[userId, courseId, status]`, `[status, paidAt]` | `type: 'course'\|'bootcamp'`; `batchId` diisi untuk order bootcamp (Phase 7). Indeks `[status, paidAt]` melayani laporan pendapatan |
+| `orders`               | `midtrans_order_id` (unik), `[userId, courseId, status]`, `[userId, batchId, status]` (Phase 7), `[status, paidAt]` | `type: 'course'\|'bootcamp'`; `courseId` / `batchId` wajib bersyarat menurut `type` (Phase 7). Indeks `[status, paidAt]` melayani laporan pendapatan |
 | `enrollments`          | `[userId, courseId]` (unik)                  | Dibuat setelah pembayaran lunas; `orderId` null untuk course gratis  |
 | `bootcamppackages`     | -                                            | `mentors[]` tertanam dengan ref `userId` ke User (role: mentor) + `occupation`; tidak ada koleksi mentor tersendiri |
 | `bootcampbatches`      | `packageId`                                  | `starting_price` diagregasi dari batch termurah                      |
