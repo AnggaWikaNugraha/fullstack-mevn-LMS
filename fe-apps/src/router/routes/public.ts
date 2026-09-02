@@ -21,6 +21,14 @@ const publicRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/courses/CourseDetailView.vue'),
       },
       {
+        // Sertifikat memakai DefaultLayout seperti halaman course lain,
+        // tapi tetap butuh login — meta anak digabung dengan meta induk
+        path: 'courses/:id/certificate',
+        name: 'course-certificate',
+        component: () => import('@/views/courses/CertificateView.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
         path: 'bootcamps',
         name: 'bootcamps',
         component: () => import('@/views/bootcamps/BootcampsView.vue'),

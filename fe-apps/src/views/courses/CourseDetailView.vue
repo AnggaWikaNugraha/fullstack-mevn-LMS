@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
+import { Award } from '@lucide/vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCourseDetail } from '@/composables/courses/useCourseDetail';
 import { useProgress } from '@/composables/courses/useProgress';
@@ -24,6 +25,7 @@ const {
   selectLesson,
   course,
   isEnrolled,
+  isCompleted,
 } = useCourseDetail(courseId);
 
 const {
@@ -192,6 +194,23 @@ const {
           </div>
 
           <!-- Prompt login untuk pengunjung yang belum masuk -->
+          <!-- Course tuntas — pintasan ke sertifikat kelulusan -->
+          <div
+            v-if="auth.isAuthenticated && isCompleted"
+            class="mt-4 flex flex-wrap items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg"
+          >
+            <Award class="w-5 h-5 text-emerald-600 shrink-0" />
+            <p class="flex-1 text-sm text-emerald-800">
+              Selamat, kamu sudah menyelesaikan seluruh pelajaran di kursus ini.
+            </p>
+            <RouterLink
+              :to="`/courses/${courseId}/certificate`"
+              class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              Lihat Sertifikat
+            </RouterLink>
+          </div>
+
           <div
             v-if="!auth.isAuthenticated"
             class="mt-4 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg"

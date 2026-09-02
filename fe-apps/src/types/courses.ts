@@ -77,3 +77,13 @@ export interface CourseProgressResponse {
   total_lessons: number;
   percentage: number;
 }
+
+// Data yang dicetak di sertifikat kelulusan
+export interface CertificateData {
+  certificateId: string;   // UUID untuk verifikasi
+  userName: string;
+  courseName: string;
+  completedAt: string;     // Progress terakhir, bukan waktu sertifikat dibuka
+  issuedAt: string;
+  totalLessons: number;
+}

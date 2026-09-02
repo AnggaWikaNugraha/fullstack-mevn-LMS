@@ -77,6 +77,19 @@ export function useCourseDetail(courseId: string) {
   const course = computed(() => data.value?.course ?? null);
   const isEnrolled = computed(() => data.value?.course.isEnrolled ?? true);
 
+  // Kelulusan dihitung dari data course yang sudah dimuat, jadi tidak perlu
+  // request progress terpisah hanya untuk memunculkan tombol sertifikat
+  const allLessons = computed<Lesson[]>(() => {
+    if (!data.value) return [];
+    return data.value.course.modules.flatMap((mod) =>
+      mod.chapters.flatMap((chapter) => chapter.lessons)
+    );
+  });
+
+  const isCompleted = computed(
+    () => allLessons.value.length > 0 && allLessons.value.every((l) => l.is_done)
+  );
+
   return {
     courseData: data,
     isLoading,
@@ -88,5 +101,6 @@ export function useCourseDetail(courseId: string) {
     selectLesson,
     course,
     isEnrolled,
+    isCompleted,
   };
 }

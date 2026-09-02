@@ -54,10 +54,11 @@ src/
 │   │   └── useGoogleAuth.ts
 │   ├── courses/               # Course composables
 │   │   ├── useCourses.ts      # useQuery for course list + topic filter
-│   │   ├── useCourseDetail.ts # useQuery for course detail + lesson list + course/isEnrolled computed
+│   │   ├── useCourseDetail.ts # useQuery for course detail + lesson list + course/isEnrolled/isCompleted computed
 │   │   ├── useProgress.ts     # useMutation for mark lesson complete
 │   │   ├── useQuiz.ts         # Quiz questions, attempt, submit mutation
-│   │   └── useTask.ts         # Task submission query + submit mutation
+│   │   ├── useTask.ts         # Task submission query + submit mutation
+│   │   └── useCertificate.ts  # Certificate query + PDF download (html2canvas + jsPDF, dynamic import)
 │   ├── bootcamps/
 │   │   ├── useBootcamps.ts
 │   │   ├── useBootcampDetail.ts
@@ -123,7 +124,8 @@ src/
 ├── views/
 │   ├── HomeView.vue
 │   ├── courses/
-│   │   └── CourseDetailView.vue
+│   │   ├── CourseDetailView.vue
+│   │   └── CertificateView.vue      # Certificate sheet + Download PDF button
 │   ├── bootcamps/
 │   │   ├── BootcampsView.vue
 │   │   ├── BootcampDetailView.vue
@@ -131,7 +133,7 @@ src/
 │   ├── checkout/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
-│   │   ├── MyCoursesView.vue        # Grid of purchased courses + progress bar
+│   │   ├── MyCoursesView.vue        # Grid of purchased courses + progress bar + "Sertifikat Tersedia" badge
 │   │   ├── MyBootcampsView.vue      # Grid of enrolled batches + status badge + next-session card
 │   │   ├── ProfileView.vue          # Edit name, avatar URL, change password
 │   │   └── PurchaseHistoryView.vue  # Order history list + status badge
@@ -226,6 +228,7 @@ src/
 │   ├── Chapter.ts
 │   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
 │   ├── Progress.ts         # userId, lessonId, courseId — unique [userId, lessonId]
+│   ├── Certificate.ts      # userId, courseId, certificateId (unique UUID), issuedAt — unique [userId, courseId]
 │   ├── QuizQuestion.ts     # options[], correct_index (never sent to FE)
 │   ├── QuizAttempt.ts      # answers[], score, passed — multiple attempts allowed
 │   ├── TaskSubmission.ts   # submission_url, note, status — unique [userId, lessonId]
@@ -322,11 +325,10 @@ src/
 | Admin — Quiz Management                           | ✅ Done         |
 | Admin — User & Bootcamp Management                | ✅ Done         |
 | Admin — Task Review                               | ✅ Done         |
-| Admin — Order Management                          | 🔄 Coming Soon  |
 | Admin — Dashboard Stats & Revenue Report          | ✅ Done         |
 | Bootcamp Checkout & Payment (Midtrans)            | ✅ Done         |
 | Bootcamp Saya (My Bootcamps)                      | ✅ Done         |
-| Course Completion Certificate (PDF download)      | 🔄 Coming Soon  |
+| Course Completion Certificate (PDF download)      | ✅ Done         |
 | Live Session (Agora RTC)                          | 🔄 Coming Soon  |
 | Notifications                                     | 🔄 Coming Soon  |
 
@@ -1258,7 +1260,7 @@ BootcampSession — no new fields needed; channel name = session _id
 
 ### Phase 3 — Quiz & Task
 
-> Assumptions: Task = submit URL + optional note. Quiz retry = unlimited. `passing_score` stored on Lesson (default 70). Task **requires admin approval** (Phase 6.7) — Progress only created after admin approves.
+> Assumptions: Task = submit URL + optional note. Quiz retry = unlimited. `passing_score` stored on Lesson (default 70). Task **requires admin approval** (Phase 6.6) — Progress only created after admin approves.
 
 #### 3.1 Quiz
 
@@ -1379,12 +1381,12 @@ User clicks task lesson in sidebar
                     |
                     ▼
               BE: save TaskSubmission (status: 'submitted')
-              ⚠️  Progress NOT created yet — lesson stays locked until admin approves (Phase 6.7)
+              ⚠️  Progress NOT created yet — lesson stays locked until admin approves (Phase 6.6)
               FE: invalidateQueries(['submission', lessonId])
               sidebar: lesson shows the "Menunggu Review" badge (not is_done ✓)
 ```
 
-> **Phase 6.7 changes this behavior**: `POST /api/tasks/:lessonId/submit` no longer auto-creates Progress.
+> **Phase 6.6 changes this behavior**: `POST /api/tasks/:lessonId/submit` no longer auto-creates Progress.
 > Progress is only created when admin approves the submission via `PATCH /api/admin/tasks/:submissionId`.
 
 **Data Model — TaskSubmission:**
@@ -1402,7 +1404,7 @@ submittedAt     → Date
 
 **BE Tasks:**
 - [x] `TaskSubmission` model (`userId`, `lessonId`, `courseId`, `submission_url`, `note`, `status`, `submittedAt`) — unique index `[userId, lessonId]`
-- [x] `POST /api/tasks/:lessonId/submit` — save TaskSubmission (status: `'submitted'`), **no Progress created** (⚠️ update existing code in Phase 6.7)
+- [x] `POST /api/tasks/:lessonId/submit` — save TaskSubmission (status: `'submitted'`), **no Progress created** (⚠️ update existing code in Phase 6.6)
 - [x] `GET /api/tasks/:lessonId/my-submission` — submission or null
 - [x] Register `taskRoutes` in `routes/index.ts`
 
@@ -1981,41 +1983,7 @@ Admin navigates to /admin/bootcamps
 
 ---
 
-#### 6.6 Order Management (Semua User)
-
-**Flow:**
-
-```
-Admin navigates to /admin/orders
-          |
-          ▼
-    GET /api/admin/orders  (pagination + filter by status + search by order_id/user)
-    Response: every order from every user, populate user + course
-          |
-          ▼
-    FE: order table — user name, course name, price, status, date
-        + filter pill: All / Paid / Pending / Failed / Expired
-          |
-          └─→ Admin clicks a stuck order (user already paid but status is still pending)
-                    ▼
-              PATCH /api/admin/orders/:id/mark-paid
-              → set status: 'paid', paidAt: now
-              → upsert Enrollment (userId + courseId from the order)
-              → FE: invalidate order list
-```
-
-> Use case: the Midtrans webhook failed entirely and the user already transferred manually or confirmed through customer support.
-
-**BE Tasks:**
-- [ ] `GET /api/admin/orders` — list all orders (all users), pagination + `?status=` filter + search
-- [ ] `PATCH /api/admin/orders/:id/mark-paid` — set status `'paid'`, paidAt now, upsert Enrollment
-
-**FE Tasks:**
-- [ ] `src/views/admin/orders/OrderListView.vue` — order table across all users + status filter + a "Mark as Paid" button for pending orders
-
----
-
-#### 6.7 Task Review
+#### 6.6 Task Review
 
 **Flow:**
 
@@ -2076,7 +2044,7 @@ feedback  → string | null  (optional admin comment on reject)
 
 ---
 
-#### 6.8 Dashboard Stats ✅
+#### 6.7 Dashboard Stats ✅
 
 **Flow:**
 
@@ -2126,7 +2094,7 @@ recentOrders[]       → 5 most recent paid orders, sorted by paidAt desc
 
 ---
 
-#### 6.9 Revenue Report ✅
+#### 6.8 Revenue Report ✅
 
 **Flow:**
 
@@ -2439,18 +2407,18 @@ issuedAt        → Date
 > Unique index on `[userId, courseId]`. Upsert-safe — clicking repeatedly does not create a new certificate.
 
 **BE Tasks:**
-- [ ] `Certificate` model (`userId`, `courseId`, `certificateId` UUID, `issuedAt`) — unique index `[userId, courseId]`
-- [ ] `GET /api/courses/:id/certificate` — check progress is 100%, upsert Certificate, return certificate data
+- [x] `Certificate` model (`userId`, `courseId`, `certificateId` UUID, `issuedAt`) — unique index `[userId, courseId]`, plus a unique index on `certificateId`
+- [x] `GET /api/courses/:id/certificate` — check progress is 100%, upsert Certificate, return certificate data. The upsert uses `$setOnInsert` so `certificateId` and `issuedAt` never change when the page is reopened. A course with no lessons does **not** count as completed (avoids a 0-of-0 certificate), and `completedAt` comes from the last Progress record rather than the moment the certificate was opened
 
 **FE Tasks:**
-- [ ] Install `jspdf` + `html2canvas` — to generate a PDF from HTML
-- [ ] `src/types/courses.ts` — add `CertificateData`
-- [ ] `src/api/courses.ts` — add `getCertificate(courseId)`
-- [ ] `src/composables/courses/useCertificate.ts` — useQuery for certificate data
-- [ ] `src/views/courses/CertificateView.vue` — certificate view (name, course, date, verification ID) + Download PDF button
-- [ ] `CourseDetailView.vue` — show a "View Certificate" button at 100% progress
-- [ ] Add route `/courses/:id/certificate` → `CertificateView` (requiresAuth)
-- [ ] `MyCoursesView.vue` — show a "Certificate Available" badge + link on cards that reached 100%
+- [x] Install `jspdf` + `html2canvas` — to generate a PDF from HTML
+- [x] `src/types/courses.ts` — add `CertificateData`
+- [x] `src/api/courses.ts` — add `getCertificate(courseId)`
+- [x] `src/composables/courses/useCertificate.ts` — useQuery (`retry: false`, since a 403 "not completed yet" is a valid answer rather than a network failure) + `downloadPdf()`. Both PDF libraries are imported dynamically so they stay out of every other page's bundle, and the certificate sheet is grabbed via `useTemplateRef('sheet')`
+- [x] `src/views/courses/CertificateView.vue` — certificate view (name, course, lesson count, completion date, verification number) + Download PDF button; when not completed it renders the BE message verbatim plus a "Lanjut Belajar" link
+- [x] `CourseDetailView.vue` — a green "Lihat Sertifikat" banner once every lesson is done; completion is derived from the already-loaded course data (`isCompleted` in `useCourseDetail`), with no separate progress request
+- [x] Add route `/courses/:id/certificate` → `CertificateView` — under `DefaultLayout` (not `ProfileLayout`, since the page belongs to the course flow) with `meta: { requiresAuth: true }` on the child route
+- [x] `MyCoursesView.vue` — show a "Certificate Available" badge + link on cards that reached 100%
 
 ---
 
@@ -2554,8 +2522,6 @@ issuedAt        → Date
 | GET    | /api/admin/users                              | List all users (pagination + search by name/email)                   | JWT + Admin |
 | GET    | /api/admin/users/:id                          | User detail + enrollments + total spent                              | JWT + Admin |
 | PATCH  | /api/admin/users/:id/role                     | Change user role                                                     | JWT + Admin |
-| GET    | /api/admin/orders                             | List all orders from all users (pagination + filter by status)       | JWT + Admin |
-| PATCH  | /api/admin/orders/:id/mark-paid               | Force mark order as paid + upsert Enrollment (for stuck payments)    | JWT + Admin |
 | GET    | /api/admin/tasks                              | List all task submissions (filter by status: submitted/approved/rejected) | JWT + Admin |
 | GET    | /api/admin/tasks/:submissionId                | Submission detail: task brief (lesson.description), curriculum position, student answer, and the student's other submissions in the same course | JWT + Admin |
 | PATCH  | /api/admin/tasks/:submissionId                | Approve or reject task + optional feedback; reject removes Progress  | JWT + Admin |

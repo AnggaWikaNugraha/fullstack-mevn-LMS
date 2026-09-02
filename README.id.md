@@ -54,10 +54,11 @@ src/
 │   │   └── useGoogleAuth.ts
 │   ├── courses/               # Composable course
 │   │   ├── useCourses.ts      # useQuery untuk daftar course + filter topic
-│   │   ├── useCourseDetail.ts # useQuery untuk detail course + daftar lesson + computed course/isEnrolled
+│   │   ├── useCourseDetail.ts # useQuery untuk detail course + daftar lesson + computed course/isEnrolled/isCompleted
 │   │   ├── useProgress.ts     # useMutation untuk menandai lesson selesai
 │   │   ├── useQuiz.ts         # Soal quiz, attempt, mutation submit
-│   │   └── useTask.ts         # Query submission task + mutation submit
+│   │   ├── useTask.ts         # Query submission task + mutation submit
+│   │   └── useCertificate.ts  # Query sertifikat + unduh PDF (html2canvas + jsPDF, impor dinamis)
 │   ├── bootcamps/
 │   │   ├── useBootcamps.ts
 │   │   ├── useBootcampDetail.ts
@@ -123,7 +124,8 @@ src/
 ├── views/
 │   ├── HomeView.vue
 │   ├── courses/
-│   │   └── CourseDetailView.vue
+│   │   ├── CourseDetailView.vue
+│   │   └── CertificateView.vue      # Lembar sertifikat + tombol Download PDF
 │   ├── bootcamps/
 │   │   ├── BootcampsView.vue
 │   │   ├── BootcampDetailView.vue
@@ -131,7 +133,7 @@ src/
 │   ├── checkout/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
-│   │   ├── MyCoursesView.vue        # Grid course yang sudah dibeli + progress bar
+│   │   ├── MyCoursesView.vue        # Grid course yang sudah dibeli + progress bar + badge "Sertifikat Tersedia"
 │   │   ├── MyBootcampsView.vue      # Grid batch yang diikuti + badge status + kartu sesi berikutnya
 │   │   ├── ProfileView.vue          # Ubah nama, URL avatar, ganti kata sandi
 │   │   └── PurchaseHistoryView.vue  # Daftar riwayat order + status badge
@@ -226,6 +228,7 @@ src/
 │   ├── Chapter.ts
 │   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
 │   ├── Progress.ts         # userId, lessonId, courseId — unik [userId, lessonId]
+│   ├── Certificate.ts      # userId, courseId, certificateId (UUID unik), issuedAt — unik [userId, courseId]
 │   ├── QuizQuestion.ts     # options[], correct_index (tidak pernah dikirim ke FE)
 │   ├── QuizAttempt.ts      # answers[], score, passed — boleh mencoba berkali-kali
 │   ├── TaskSubmission.ts   # submission_url, note, status — unik [userId, lessonId]
@@ -322,11 +325,10 @@ src/
 | Admin — Manajemen Quiz                            | ✅ Selesai      |
 | Admin — Manajemen User & Bootcamp                 | ✅ Selesai      |
 | Admin — Review Task                               | ✅ Selesai      |
-| Admin — Manajemen Order                           | 🔄 Akan Datang  |
 | Admin — Statistik Dashboard & Laporan Pendapatan  | ✅ Selesai      |
 | Checkout & Pembayaran Bootcamp (Midtrans)         | ✅ Selesai      |
 | Bootcamp Saya                                     | ✅ Selesai      |
-| Sertifikat Kelulusan Course (unduh PDF)           | 🔄 Akan Datang  |
+| Sertifikat Kelulusan Course (unduh PDF)           | ✅ Selesai      |
 | Live Session (Agora RTC)                          | 🔄 Akan Datang  |
 | Notifikasi                                        | 🔄 Akan Datang  |
 
@@ -1255,7 +1257,7 @@ BootcampSession — tidak butuh field baru; nama kanal = _id sesi
 ---
 ### Phase 3 — Quiz & Task
 
-> Asumsi: Task = kirim URL + catatan opsional. Percobaan ulang quiz = tak terbatas. `passing_score` disimpan di Lesson (bawaan 70). Task **butuh persetujuan admin** (Phase 6.7) — Progress baru dibuat setelah admin menyetujui.
+> Asumsi: Task = kirim URL + catatan opsional. Percobaan ulang quiz = tak terbatas. `passing_score` disimpan di Lesson (bawaan 70). Task **butuh persetujuan admin** (Phase 6.6) — Progress baru dibuat setelah admin menyetujui.
 
 #### 3.1 Quiz
 
@@ -1376,12 +1378,12 @@ User menekan lesson task di sidebar
                     |
                     ▼
               BE: simpan TaskSubmission (status: 'submitted')
-              ⚠️  Progress BELUM dibuat — lesson tetap terkunci sampai admin menyetujui (Phase 6.7)
+              ⚠️  Progress BELUM dibuat — lesson tetap terkunci sampai admin menyetujui (Phase 6.6)
               FE: invalidateQueries(['submission', lessonId])
               sidebar: lesson menampilkan badge "Menunggu Review" (bukan is_done ✓)
 ```
 
-> **Phase 6.7 mengubah perilaku ini**: `POST /api/tasks/:lessonId/submit` tidak lagi membuat Progress secara otomatis.
+> **Phase 6.6 mengubah perilaku ini**: `POST /api/tasks/:lessonId/submit` tidak lagi membuat Progress secara otomatis.
 > Progress baru dibuat saat admin menyetujui submission lewat `PATCH /api/admin/tasks/:submissionId`.
 
 **Model Data — TaskSubmission:**
@@ -1399,7 +1401,7 @@ submittedAt     → Date
 
 **Tugas BE:**
 - [x] Model `TaskSubmission` (`userId`, `lessonId`, `courseId`, `submission_url`, `note`, `status`, `submittedAt`) — indeks unik `[userId, lessonId]`
-- [x] `POST /api/tasks/:lessonId/submit` — simpan TaskSubmission (status: `'submitted'`), **tanpa membuat Progress** (⚠️ memperbarui kode yang sudah ada di Phase 6.7)
+- [x] `POST /api/tasks/:lessonId/submit` — simpan TaskSubmission (status: `'submitted'`), **tanpa membuat Progress** (⚠️ memperbarui kode yang sudah ada di Phase 6.6)
 - [x] `GET /api/tasks/:lessonId/my-submission` — submission atau null
 - [x] Daftarkan `taskRoutes` di `routes/index.ts`
 
@@ -1978,41 +1980,7 @@ Admin membuka /admin/bootcamps
 
 ---
 
-#### 6.6 Manajemen Order (Semua User)
-
-**Alur:**
-
-```
-Admin membuka /admin/orders
-          |
-          ▼
-    GET /api/admin/orders  (paginasi + filter status + pencarian order_id/user)
-    Balasan: seluruh order dari seluruh user, populate user + course
-          |
-          ▼
-    FE: tabel order — nama user, nama course, harga, status, tanggal
-        + pill filter: Semua / Paid / Pending / Failed / Expired
-          |
-          └─→ Admin menekan order yang tersangkut (user sudah membayar tapi status masih pending)
-                    ▼
-              PATCH /api/admin/orders/:id/mark-paid
-              → set status: 'paid', paidAt: sekarang
-              → upsert Enrollment (userId + courseId dari order tersebut)
-              → FE: invalidasi daftar order
-```
-
-> Kasus penggunaan: webhook Midtrans gagal total dan user sudah transfer manual atau mengonfirmasi lewat layanan pelanggan.
-
-**Tugas BE:**
-- [ ] `GET /api/admin/orders` — daftar semua order (semua user), paginasi + filter `?status=` + pencarian
-- [ ] `PATCH /api/admin/orders/:id/mark-paid` — set status `'paid'`, paidAt sekarang, upsert Enrollment
-
-**Tugas FE:**
-- [ ] `src/views/admin/orders/OrderListView.vue` — tabel order lintas semua user + filter status + tombol "Mark as Paid" untuk order pending
-
----
-
-#### 6.7 Review Task
+#### 6.6 Review Task
 
 **Alur:**
 
@@ -2073,7 +2041,7 @@ feedback  → string | null  (komentar opsional dari admin saat menolak)
 
 ---
 
-#### 6.8 Statistik Dashboard ✅
+#### 6.7 Statistik Dashboard ✅
 
 **Alur:**
 
@@ -2123,7 +2091,7 @@ recentOrders[]       → 5 order terbayar paling baru, diurutkan paidAt menurun
 
 ---
 
-#### 6.9 Laporan Pendapatan ✅
+#### 6.8 Laporan Pendapatan ✅
 
 **Alur:**
 
@@ -2435,18 +2403,18 @@ issuedAt        → Date
 > Indeks unik pada `[userId, courseId]`. Aman untuk upsert — menekan berkali-kali tidak membuat sertifikat baru.
 
 **Tugas BE:**
-- [ ] Model `Certificate` (`userId`, `courseId`, `certificateId` UUID, `issuedAt`) — indeks unik `[userId, courseId]`
-- [ ] `GET /api/courses/:id/certificate` — periksa progress 100%, upsert Certificate, kembalikan data sertifikat
+- [x] Model `Certificate` (`userId`, `courseId`, `certificateId` UUID, `issuedAt`) — indeks unik `[userId, courseId]`, plus indeks unik pada `certificateId`
+- [x] `GET /api/courses/:id/certificate` — periksa progress 100%, upsert Certificate, kembalikan data sertifikat. Upsert memakai `$setOnInsert` supaya `certificateId` dan `issuedAt` tidak berubah saat halaman dibuka ulang. Course tanpa lesson **tidak** dianggap lulus (hindari sertifikat 0 dari 0), dan `completedAt` diambil dari Progress terakhir — bukan waktu sertifikat dibuka
 
 **Tugas FE:**
-- [ ] Pasang `jspdf` + `html2canvas` — untuk membuat PDF dari HTML
-- [ ] `src/types/courses.ts` — tambahkan `CertificateData`
-- [ ] `src/api/courses.ts` — tambahkan `getCertificate(courseId)`
-- [ ] `src/composables/courses/useCertificate.ts` — useQuery untuk data sertifikat
-- [ ] `src/views/courses/CertificateView.vue` — tampilan sertifikat (nama, course, tanggal, ID verifikasi) + tombol Download PDF
-- [ ] `CourseDetailView.vue` — tampilkan tombol "Lihat Sertifikat" saat progress 100%
-- [ ] Tambahkan route `/courses/:id/certificate` → `CertificateView` (requiresAuth)
-- [ ] `MyCoursesView.vue` — tampilkan badge "Sertifikat Tersedia" + tautan pada kartu yang sudah 100%
+- [x] Pasang `jspdf` + `html2canvas` — untuk membuat PDF dari HTML
+- [x] `src/types/courses.ts` — tambahkan `CertificateData`
+- [x] `src/api/courses.ts` — tambahkan `getCertificate(courseId)`
+- [x] `src/composables/courses/useCertificate.ts` — useQuery (`retry: false`, karena 403 "belum lulus" adalah jawaban sah dan bukan kegagalan jaringan) + `downloadPdf()`. Kedua pustaka PDF diimpor dinamis agar tidak ikut bundel halaman lain, dan lembar sertifikat diambil lewat `useTemplateRef('sheet')`
+- [x] `src/views/courses/CertificateView.vue` — tampilan sertifikat (nama, course, jumlah pelajaran, tanggal selesai, nomor verifikasi) + tombol Download PDF; saat belum lulus menampilkan pesan dari BE apa adanya + tautan "Lanjut Belajar"
+- [x] `CourseDetailView.vue` — banner hijau "Lihat Sertifikat" saat seluruh lesson selesai; kelulusan dihitung dari data course yang sudah dimuat (`isCompleted` di `useCourseDetail`), tanpa request progress terpisah
+- [x] Tambahkan route `/courses/:id/certificate` → `CertificateView` — di bawah `DefaultLayout` (bukan `ProfileLayout`, karena halamannya milik alur course) dengan `meta: { requiresAuth: true }` di route anak
+- [x] `MyCoursesView.vue` — tampilkan badge "Sertifikat Tersedia" + tautan pada kartu yang sudah 100%
 
 ---
 
@@ -2550,8 +2518,6 @@ issuedAt        → Date
 | GET    | /api/admin/users                              | Daftar semua user (paginasi + pencarian nama/email)                  | JWT + Admin |
 | GET    | /api/admin/users/:id                          | Detail user + enrollment + total pembelian                           | JWT + Admin |
 | PATCH  | /api/admin/users/:id/role                     | Ubah peran user                                                      | JWT + Admin |
-| GET    | /api/admin/orders                             | Daftar semua order dari semua user (paginasi + filter status)        | JWT + Admin |
-| PATCH  | /api/admin/orders/:id/mark-paid               | Paksa tandai order sebagai terbayar + upsert Enrollment (untuk pembayaran tersangkut) | JWT + Admin |
 | GET    | /api/admin/tasks                              | Daftar semua submission task (filter status: submitted/approved/rejected) | JWT + Admin |
 | GET    | /api/admin/tasks/:submissionId                | Detail submission: soal tugas (lesson.description), posisi kurikulum, jawaban peserta, dan riwayat tugas lain di kursus yang sama | JWT + Admin |
 | PATCH  | /api/admin/tasks/:submissionId                | Setujui atau tolak task + feedback opsional; penolakan menghapus Progress | JWT + Admin |

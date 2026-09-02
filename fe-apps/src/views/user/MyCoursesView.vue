@@ -1,12 +1,20 @@
 <script setup lang="ts">
+import { Award } from '@lucide/vue';
 import { useMyEnrollments } from '@/composables/enrollments/useMyEnrollments';
 import { formatDate, progressPercent } from '@/utils/format';
+import type { MyCourse } from '@/types/enrollments';
 
 const {
   courses,
   isLoading,
   isError,
 } = useMyEnrollments();
+
+// Course dianggap tuntas saat seluruh lesson-nya selesai; course tanpa lesson
+// tidak dihitung lulus supaya tidak muncul sertifikat 0 dari 0
+function isCompleted(item: MyCourse) {
+  return item.course.total_lessons > 0 && item.completed_lessons >= item.course.total_lessons;
+}
 </script>
 
 <template>
@@ -43,12 +51,12 @@ const {
 
     <!-- Daftar kurs -->
     <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      <RouterLink
+      <div
         v-for="item in courses"
         :key="item.enrollment_id"
-        :to="`/courses/${item.course._id}`"
-        class="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+        class="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
       >
+        <RouterLink :to="`/courses/${item.course._id}`" class="flex-1 block">
         <!-- Cover -->
         <div class="aspect-video overflow-hidden bg-gray-100">
           <img
@@ -82,7 +90,18 @@ const {
 
           <p class="mt-3 text-xs font-medium text-indigo-600 group-hover:underline">Lanjut Belajar →</p>
         </div>
-      </RouterLink>
+        </RouterLink>
+
+        <!-- Sertifikat baru terbuka setelah seluruh lesson selesai -->
+        <RouterLink
+          v-if="isCompleted(item)"
+          :to="`/courses/${item.course._id}/certificate`"
+          class="flex items-center justify-center gap-1.5 px-4 py-2.5 border-t border-emerald-100 bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+        >
+          <Award class="w-3.5 h-3.5" />
+          Sertifikat Tersedia
+        </RouterLink>
+      </div>
     </div>
   </div>
 </template>

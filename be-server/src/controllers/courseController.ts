@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import Course from '../models/Course';
 import Topic from '../models/Topic';
@@ -6,6 +7,8 @@ import Chapter from '../models/Chapter';
 import Lesson, { ILesson } from '../models/Lesson';
 import Progress from '../models/Progress';
 import Enrollment from '../models/Enrollment';
+import Certificate from '../models/Certificate';
+import User from '../models/User';
 import { AuthRequest } from '../middlewares/authMiddleware';
 
 // ─── Daftar Kurs ──────────────────────────────────────────────────────────────
@@ -256,6 +259,67 @@ export const getCourseProgress = async (req: AuthRequest, res: Response, next: N
         completed_lessons: completedCount,
         total_lessons: totalCount,
         percentage: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Sertifikat Kelulusan ─────────────────────────────────────────────────────
+// Sertifikat baru diterbitkan saat seluruh lesson selesai. Penerbitannya idempoten:
+// dokumen di-upsert lewat pasangan [userId, courseId], jadi membuka halaman
+// sertifikat berulang kali tetap mengembalikan certificateId yang sama.
+
+export const getCourseCertificate = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const course = await Course.findById(id).select('title');
+    if (!course) {
+      res.status(404).json({ success: false, message: 'Course tidak ditemukan.' });
+      return;
+    }
+
+    const [completedCount, totalCount] = await Promise.all([
+      Progress.countDocuments({ userId: req.userId, courseId: id }),
+      Lesson.countDocuments({ courseId: id }),
+    ]);
+
+    // Course tanpa lesson tidak bisa dianggap lulus — hindari sertifikat 0 dari 0
+    if (totalCount === 0 || completedCount < totalCount) {
+      res.status(403).json({
+        success: false,
+        message: 'Selesaikan seluruh lesson terlebih dahulu untuk mendapatkan sertifikat.',
+      });
+      return;
+    }
+
+    const user = await User.findById(req.userId).select('name');
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
+      return;
+    }
+
+    // setOnInsert dipakai agar issuedAt dan certificateId tidak berubah saat diakses ulang
+    const certificate = await Certificate.findOneAndUpdate(
+      { userId: req.userId, courseId: id },
+      { $setOnInsert: { userId: req.userId, courseId: id, certificateId: randomUUID(), issuedAt: new Date() } },
+      { upsert: true, new: true }
+    );
+
+    // Tanggal penyelesaian = Progress terakhir, bukan waktu sertifikat dibuka
+    const lastProgress = await Progress.findOne({ userId: req.userId, courseId: id }).sort({ completedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        certificateId: certificate.certificateId,
+        userName: user.name,
+        courseName: course.title,
+        completedAt: lastProgress?.completedAt ?? certificate.issuedAt,
+        issuedAt: certificate.issuedAt,
+        totalLessons: totalCount,
       },
     });
   } catch (err) {

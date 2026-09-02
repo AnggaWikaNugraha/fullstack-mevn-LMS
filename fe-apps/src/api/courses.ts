@@ -5,6 +5,7 @@ import type {
   Topic,
   CourseDetailResponse,
   CourseProgressResponse,
+  CertificateData,
 } from '@/types/courses';
 
 export const getCourses = (params?: { topic?: string; page?: number; limit?: number }) =>
@@ -21,3 +22,6 @@ export const updateProgress = (payload: { lesson_id: string }) =>
 
 export const getCourseProgress = (courseId: string) =>
   apiClient.get<ApiResponse<CourseProgressResponse>>(`/courses/${courseId}/progress`);
+
+export const getCertificate = (courseId: string) =>
+  apiClient.get<ApiResponse<CertificateData>>(`/courses/${courseId}/certificate`);
