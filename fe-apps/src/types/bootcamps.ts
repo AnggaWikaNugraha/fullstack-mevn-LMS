@@ -89,3 +89,23 @@ export interface MyBootcampEnrollment {
 export interface MyBootcampsResponse {
   bootcamps: MyBootcampEnrollment[];
 }
+
+// ── Live Session (Agora RTC) ────────────────────────────────────────────────
+
+// Peran ditentukan server per sesi — bukan diturunkan dari User.role, karena
+// seseorang bisa jadi mentor di satu bootcamp dan peserta biasa di bootcamp lain
+export interface LiveSessionToken {
+  token: string;
+  appId: string;
+  channelName: string;
+  uid: number;
+  role: 'host' | 'participant';
+  session: {
+    _id: string;
+    title: string;
+    session_name: string;
+    session_date: string;
+    session_start_time: string;
+    session_end_time: string;
+  };
+}

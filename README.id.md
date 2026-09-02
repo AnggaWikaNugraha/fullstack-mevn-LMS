@@ -64,7 +64,8 @@ src/
 │   │   ├── useBootcampDetail.ts
 │   │   ├── useBootcampCheckout.ts # load snap.js, createOrder per batch, callback snap.pay
 │   │   ├── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
-│   │   └── useMyBootcamps.ts    # query bootcamp yang diikuti + pisah aktif/selesai + helper badge status & tanggal
+│   │   ├── useMyBootcamps.ts    # query bootcamp yang diikuti + pisah aktif/selesai + helper badge status & tanggal + liveSessionOf()
+│   │   └── useLiveSession.ts    # join/leave kanal Agora, track lokal & jarak jauh, toggle mic/kamera
 │   ├── checkout/
 │   │   ├── useCheckout.ts     # memuat snap.js, createOrder, callback snap.pay
 │   │   └── useEnrollment.ts   # polling + timeout + fallback manualVerify
@@ -129,12 +130,13 @@ src/
 │   ├── bootcamps/
 │   │   ├── BootcampsView.vue
 │   │   ├── BootcampDetailView.vue
-│   │   └── CheckoutBootcampResultView.vue
+│   │   ├── CheckoutBootcampResultView.vue
+│   │   └── LiveSessionView.vue       # Ruang video Agora — grid peserta, kontrol mic/kamera, badge Mentor
 │   ├── checkout/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
 │   │   ├── MyCoursesView.vue        # Grid course yang sudah dibeli + progress bar + badge "Sertifikat Tersedia"
-│   │   ├── MyBootcampsView.vue      # Grid batch yang diikuti + badge status + kartu sesi berikutnya
+│   │   ├── MyBootcampsView.vue      # Grid batch yang diikuti + badge status + kartu sesi berikutnya + tombol "Gabung Sesi"
 │   │   ├── ProfileView.vue          # Ubah nama, URL avatar, ganti kata sandi
 │   │   └── PurchaseHistoryView.vue  # Daftar riwayat order + status badge
 │   ├── auth/
@@ -205,6 +207,7 @@ src/
 │   ├── taskController.ts        # Submit task, my-submission
 │   ├── userController.ts        # getProfile, updateProfile, changePassword
 │   ├── orderController.ts       # getMyOrders
+│   ├── liveSessionController.ts # Token RTC Agora per sesi (cek enrollment + host + rem kuota) + getLiveUsage
 │   └── admin/
 │       ├── courseAdminController.ts    # CRUD admin: course + module + chapter + lesson + cascade delete; topic_name di-resolve otomatis dari koleksi Topic
 │       ├── quizAdminController.ts      # CRUD quiz admin: get/create/update/delete soal (beserta correct_index)
@@ -213,6 +216,8 @@ src/
 │       ├── userAdminController.ts      # User admin: listUsers (paginasi+pencarian) + getUserDetail (enrollment+order+total_spent) + updateUserRole
 │       ├── taskAdminController.ts     # Review task admin: listSubmissions (filter status + populate) + getSubmissionDetail (lesson+chapter+module+course+riwayat) + reviewSubmission (approve → upsert Progress; reject → hapus Progress + isi feedback)
 │       └── dashboardAdminController.ts # Dashboard admin: getDashboardStats (jumlah + pendapatan + 5 order terbaru) + getRevenueReport (seri 12 bulan + course terlaris + ringkasan, semuanya berbasis WIB)
+├── utils/
+│   └── wib.ts               # TIMEZONE, wibToUtc, nowInWib, startOfCurrentWibMonth — dipakai laporan pendapatan & rem kuota Agora
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
 │   ├── adminMiddleware.ts   # adminOnly — memeriksa role === 'admin'
@@ -229,6 +234,7 @@ src/
 │   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
 │   ├── Progress.ts         # userId, lessonId, courseId — unik [userId, lessonId]
 │   ├── Certificate.ts      # userId, courseId, certificateId (UUID unik), issuedAt — unik [userId, courseId]
+│   ├── LiveSessionUsage.ts # userId, sessionId, minutes — rem kuota menit gratis Agora, unik [userId, sessionId]
 │   ├── QuizQuestion.ts     # options[], correct_index (tidak pernah dikirim ke FE)
 │   ├── QuizAttempt.ts      # answers[], score, passed — boleh mencoba berkali-kali
 │   ├── TaskSubmission.ts   # submission_url, note, status — unik [userId, lessonId]
@@ -329,7 +335,7 @@ src/
 | Checkout & Pembayaran Bootcamp (Midtrans)         | ✅ Selesai      |
 | Bootcamp Saya                                     | ✅ Selesai      |
 | Sertifikat Kelulusan Course (unduh PDF)           | ✅ Selesai      |
-| Live Session (Agora RTC)                          | 🔄 Akan Datang  |
+| Live Session (Agora RTC)                          | ✅ Selesai      |
 | Notifikasi                                        | 🔄 Akan Datang  |
 
 ---
@@ -1220,9 +1226,11 @@ User bergabung ke sesi langsung
           |
           ├─→ Belum terautentikasi        → alihkan ke login
           ├─→ Belum terdaftar di batch    → 403 Forbidden
-          └─→ Terautentikasi + terdaftar
+          ├─→ Kuota menit bulan ini habis → 403 "Kuota live session bulan ini sudah habis"
+          └─→ Terautentikasi + terdaftar + kuota aman
                     |
                     ▼
+              BE mencatat estimasi pemakaian (upsert LiveSessionUsage)
               BE membuat token RTC Agora
               (App ID + App Certificate + channelName + uid)
                     |
@@ -1234,27 +1242,90 @@ User bergabung ke sesi langsung
 **Integrasi Agora:**
 - Nama kanal: diturunkan dari `BootcampSession._id` (unik per sesi)
 - Masa berlaku token: pendek (1 jam), dibuat saat dibutuhkan
+- ⚠️ `tokenExpire` dan `privilegeExpire` di `RtcTokenBuilder.buildTokenWithUid()` sama-sama berupa **durasi detik dari sekarang**, bukan timestamp absolut. Mengisi salah satunya dengan epoch membuat privilege melewati batas 24 jam milik Agora, dan gateway menolaknya dengan `CAN_NOT_GET_GATEWAY_SERVER: invalid token, authorized failed` — token tetap terbentuk di server, jadi kesalahannya baru terlihat saat FE mencoba join
 - App Certificate hanya disimpan di sisi server (tidak pernah dibuka ke FE)
+
+**Model biaya — kenapa proyek ini tetap gratis:**
+
+Agora memberi **10.000 menit gratis tiap bulan** untuk setiap akun, reset bulanan, bukan trial sekali habis. Akun dihitung *free account* selama belum menambahkan kartu kredit dan belum top-up saldo — jadi **cukup daftar tanpa memasukkan data pembayaran**. Konsekuensinya: tanpa kartu terpasang, Agora tidak punya cara menagih; kalau kuota habis, yang terjadi adalah layanan berhenti, bukan tagihan kaget.
+
+Menit dihitung **per peserta**, bukan per sesi:
+
+```
+Uji coba berdua, 30 menit   =    60 menit  → muat ±166 kali sebulan
+Sesi 3 jam, 5 peserta       =   900 menit  → muat 11 sesi sebulan
+Sesi 3 jam, 10 peserta      = 1.800 menit  → muat 5 sesi sebulan
+```
+
+Tarif di luar kuota: ±$0,99/1.000 menit audio dan ±$3,99/1.000 menit video HD. Peserta yang kameranya mati masuk hitungan audio yang jauh lebih murah — di kelas bootcamp biasanya memang hanya mentor yang kameranya menyala.
+
+**Rem kuota sendiri (`LiveSessionUsage`):**
+
+Berhenti mendadak dari sisi Agora tampil sebagai error SDK mentah di UI. Karena itu BE memasang remnya sendiri sebelum sampai ke sana:
+
+```
+LiveSessionUsage — model BARU
+userId     → ref ke User
+sessionId  → ref ke BootcampSession
+minutes    → estimasi menit yang dipesan join ini
+createdAt  → dipakai untuk menjumlahkan pemakaian bulan berjalan
+```
+> Indeks unik `[userId, sessionId]` — user yang me-refresh halaman tidak terhitung dua kali.
+
+Tiga keputusan yang menentukan bentuknya:
+
+- **Dihitung di muka, bukan saat user keluar.** Kapan orang menutup tab tidak pernah bisa diketahui pasti. Mencatat durasi penuh sesi (`session_end_time − session_start_time`) begitu token terbit membuat angkanya selalu lebih besar dari kenyataan — untuk sebuah rem, salah ke arah aman justru yang benar.
+- **Budget disimpan di `.env`** sebagai `AGORA_MONTHLY_MINUTE_BUDGET=8000` — sisakan jarak dari batas asli 10.000, karena estimasi kita tidak akan sama persis dengan hitungan Agora.
+- **Batas bulan memakai jam WIB**, lewat helper `wibToUtc()` / `nowInWib()` yang sudah ada di `dashboardAdminController.ts`, supaya kuota tidak reset di tengah hari waktu Indonesia.
+
+**Host vs peserta — siapa yang beda dan di mana ditegakkan:**
+
+Yang berhadapan di ruang meeting bukan admin vs user, melainkan **mentor (host)** vs **peserta**. Mentor menempel di `BootcampPackage.mentors[]`, jadi rantainya `BootcampSession → batchId → BootcampBatch → packageId → BootcampPackage.mentors[]` — rantai yang memang sudah ditelusuri untuk mengecek enrollment.
+
+| | Mentor (host) | Peserta |
+|---|---|---|
+| Mic & kamera sendiri | ✓ | ✓ |
+| Keluar sesi | ✓ | ✓ |
+| Badge "Mentor" di header | ✓ | — |
+| Tombol "Akhiri Sesi" | ✓ | — (tertulis "Keluar") |
+| Wajib terdaftar di batch | — (mentor selalu boleh masuk) | ✓ |
+
+Dua keputusan penting:
+
+- **Peran dikirim server** sebagai `role: 'host' | 'participant'` di balasan token, bukan diturunkan FE dari `User.role`. Status host itu **per sesi** — orang yang sama bisa jadi mentor di Bootcamp A dan peserta biasa di Bootcamp B.
+- **Keduanya `RtcRole.PUBLISHER`**, karena peserta kelas tetap perlu bisa bertanya. Kalau nanti ada sesi kuliah satu arah, terbitkan `RtcRole.SUBSCRIBER` untuk peserta — Agora menegakkannya di sisi server, sehingga pemegang token subscriber secara teknis tidak bisa mengirim audio/video apa pun yang dilakukan di browser. Perbedaan yang hanya berupa `v-if` bukan pengamanan.
 
 **Perubahan Model Data:**
 ```
-BootcampSession — tidak butuh field baru; nama kanal = _id sesi
+BootcampSession   — tidak butuh field baru; nama kanal = _id sesi
+LiveSessionUsage  — model BARU (lihat di atas)
 ```
 
+> Nama kanal = `_id` sesi. `uid` Agora harus uint32 sedangkan ObjectId terlalu panjang, jadi dipakai **8 hex terakhir** ObjectId user — stabil untuk user yang sama sehingga rejoin tidak berganti uid.
+
 **Tugas BE:**
-- [ ] Tambahkan `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE` ke `.env`
-- [ ] Pasang `agora-token` (npm) — pustaka pembuatan token Agora
-- [ ] `POST /api/bootcamps/sessions/:sessionId/token` — validasi enrollment, buat token RTC, kembalikan `{ token, channelName, appId, uid }`
-- [ ] Middleware pemeriksa enrollment — pastikan user terdaftar di batch pemilik sesi ini
+- [x] Tambahkan `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE` + `AGORA_MONTHLY_MINUTE_BUDGET` ke `.env` dan `.env.example`
+- [x] Pasang `agora-token` (npm) — pustaka pembuatan token Agora
+- [x] Model `LiveSessionUsage` (`userId`, `sessionId`, `minutes`) — indeks unik `[userId, sessionId]` + indeks `createdAt`
+- [x] `src/utils/wib.ts` — helper `wibToUtc` / `nowInWib` / `startOfCurrentWibMonth` dipindah keluar dari `dashboardAdminController` agar laporan pendapatan dan rem kuota memakai satu sumber batas bulan yang sama
+- [x] `POST /api/bootcamps/sessions/:sessionId/token` — validasi enrollment → cek kuota bulan berjalan → catat pemakaian → buat token RTC, kembalikan `{ token, appId, channelName, uid, role, session }`
+- [x] Pengecekan enrollment dilakukan **inline di controller**, bukan sebagai middleware terpisah — hanya satu route yang memakainya, dan datanya (`session → batch → package`) sudah ditelusuri di tempat yang sama untuk menentukan mentor
+- [x] `GET /api/admin/dashboard/live-usage` — sisa kuota bulan berjalan (`budget`, `used`, `remaining`, `percentage`) untuk dipantau admin. Menempel di `dashboardAdminRoutes` yang sudah dijaga `protect + adminOnly`, jadi pathnya di bawah `/dashboard` — bukan `/api/admin/live-usage` seperti rencana awal, karena membuat berkas route baru untuk satu endpoint tidak sepadan
 
 **Tugas FE:**
-- [ ] Pasang `agora-rtc-sdk-ng` (npm)
-- [ ] `src/api/bootcamps.ts` — tambahkan `getSessionToken(sessionId)`
-- [ ] `src/composables/bootcamps/useLiveSession.ts` — bergabung/keluar kanal, kelola track lokal + jarak jauh
-- [ ] `src/views/bootcamps/LiveSessionView.vue` — grid video (mentor + peserta), toggle mikrofon/kamera, tombol keluar
-- [ ] Tambahkan route `/bootcamps/sessions/:sessionId/live` → `LiveSessionView`
+- [x] Pasang `agora-rtc-sdk-ng` (npm) — diimpor **dinamis**, jadi bundel 1,5 MB-nya hanya diunduh saat halaman sesi dibuka
+- [x] `src/types/bootcamps.ts` — tambahkan `LiveSessionToken`
+- [x] `src/api/bootcamps.ts` — tambahkan `getSessionToken(sessionId)`
+- [x] `src/composables/bootcamps/useLiveSession.ts` — bergabung/keluar kanal, kelola track lokal + jarak jauh. Objek SDK disimpan di `shallowRef` supaya Vue tidak membungkusnya proxy (bisa merusak internal SDK), dan kanal ikut dilepas lewat `pagehide` karena menutup tab tidak memicu `onBeforeUnmount`
+- [x] `src/views/bootcamps/LiveSessionView.vue` — grid video (mentor + peserta), toggle mikrofon/kamera, tombol keluar; badge **Mentor** dan tombol "Akhiri Sesi" hanya untuk host; pesan 403 dari BE ditampilkan apa adanya, bukan error mentah SDK
+- [x] `MyBootcampsView.vue` — tombol "Gabung Sesi Sekarang" pada kartu yang punya sesi berjalan; pintu masuk terbuka 15 menit sebelum jadwal dan menutup sendiri setelah sesi berakhir, digerakkan `now` yang berdetak tiap 30 detik sehingga tombolnya muncul/hilang tanpa muat ulang
+- [x] `src/types/auth.ts` — tambahkan `'mentor'` ke `User['role']`; enum BE sudah punya sejak Phase 6.5 tapi tipe FE tertinggal
+- [x] Tambahkan route `/bootcamps/sessions/:sessionId/live` → `LiveSessionView` (`meta.requiresAuth`; enrollment dan kuota tetap diputuskan server saat token diminta, bukan di router guard)
+
+> Kalau nanti bootcamp benar-benar jalan rutin dengan puluhan peserta, pindah ke **LiveKit self-host** (Apache 2.0) relatif murah: pola token server-nya identik, yang berganti hanya pustaka pembuat token di BE dan SDK di FE.
 
 ---
+
 ### Phase 3 — Quiz & Task
 
 > Asumsi: Task = kirim URL + catatan opsional. Percobaan ulang quiz = tak terbatas. `passing_score` disimpan di Lesson (bawaan 70). Task **butuh persetujuan admin** (Phase 6.6) — Progress baru dibuat setelah admin menyetujui.
@@ -2535,6 +2606,7 @@ issuedAt        → Date
 | PATCH  | /api/admin/sessions/:id                       | Perbarui session                                                     | JWT + Admin |
 | DELETE | /api/admin/sessions/:id                       | Hapus session                                                        | JWT + Admin |
 | GET    | /api/admin/dashboard/revenue                  | Laporan pendapatan — seri 12 bulan (dipecah course/bootcamp) + course & bootcamp terlaris + ringkasan (`?year=`, bawaannya tahun berjalan) | JWT + Admin |
+| GET    | /api/admin/dashboard/live-usage               | Sisa kuota menit Agora bulan berjalan (budget, used, remaining, percentage) | JWT + Admin |
 
 ### Checkout & Enrollment Bootcamp (Phase 7)
 
@@ -2544,6 +2616,7 @@ issuedAt        → Date
 | POST   | /api/checkout/webhook                         | *(dipakai bersama checkout course)* — bercabang lewat `order.type` untuk upsert Enrollment atau BootcampEnrollment | -    |
 | GET    | /api/checkout/verify/:orderId                 | *(dipakai bersama checkout course)* — percabangan sama, dipakai tombol fallback manual | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | Batch bootcamp yang diikuti user + status batch, jumlah sesi, dan sesi terdekat | JWT  |
+| POST   | /api/bootcamps/sessions/:sessionId/token      | Token RTC Agora untuk sesi — cek enrollment, tentukan host/participant, tolak bila kuota menit bulan ini habis | JWT  |
 | GET    | /api/bootcamps/enrollments/check/:batchId     | Periksa apakah user terdaftar di batch ini — wajib didaftarkan sebelum `/api/bootcamps/:id` | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | Daftar semua enrollment bootcamp milik user                          | JWT  |
 
@@ -2564,16 +2637,19 @@ issuedAt        → Date
 | `PORT`                  | `3000`                                       | Port server Express                      |
 | `MONGODB_URI`           | `mongodb+srv://...`                          | String koneksi MongoDB Atlas             |
 | `JWT_SECRET`            | `your_jwt_secret`                            | Kunci rahasia penanda access token       |
-| `JWT_EXPIRES_IN`        | `15m`                                        | Masa berlaku access token                |
 | `REFRESH_TOKEN_SECRET`  | `your_refresh_secret`                        | Kunci rahasia penanda refresh token      |
-| `REFRESH_TOKEN_EXPIRES_IN` | `1d`                                      | Masa berlaku refresh token               |
 | `NODE_ENV`              | `development`                                | Mode lingkungan                          |
+| `SMTP_USER`             | `kamu@gmail.com`                             | Alamat Gmail pengirim OTP                |
+| `SMTP_PASS`             | `xxxx xxxx xxxx xxxx`                        | **App Password** Gmail, bukan kata sandi akun |
 | `GOOGLE_CLIENT_ID`      | `xxxx.apps.googleusercontent.com`            | Client ID Google OAuth                   |
 | `GOOGLE_CLIENT_SECRET`  | `GOCSPX-xxxx`                                | Client secret Google OAuth               |
 | `GOOGLE_REDIRECT_URI`   | `http://localhost:5173/auth/google/callback` | Harus sama dengan Google Console & env FE |
 | `MIDTRANS_SERVER_KEY`   | `Mid-server-xxxx`                            | Server key Midtrans (tidak pernah dibuka ke FE) |
 | `MIDTRANS_CLIENT_KEY`   | `Mid-client-xxxx`                            | Client key Midtrans                      |
 | `MIDTRANS_IS_PRODUCTION`| `false`                                      | `true` untuk lingkungan produksi         |
+| `AGORA_APP_ID`          | `a1b2c3...`                                  | App ID dari Agora Console                |
+| `AGORA_APP_CERTIFICATE` | `d4e5f6...`                                  | App Certificate — hanya di server, tidak pernah dibuka ke FE |
+| `AGORA_MONTHLY_MINUTE_BUDGET` | `8000`                                 | Rem kuota sendiri; sisakan jarak dari kuota gratis Agora 10.000 menit/bulan |
 
 ### Frontend (`fe-apps/.env`)
 
@@ -2789,5 +2865,6 @@ issuedAt        → Date
 | `bootcampsessions`     | `batchId`                                    | -                                                                    |
 | `bootcampenrollments`  | `[userId, batchId]` (unik)                   | Dibuat setelah pembayaran bootcamp lunas (Phase 7)                   |
 | `certificates`         | `[userId, courseId]` (unik), `certificateId` (unik) | Diterbitkan saat progress course 100% (Phase 7)              |
+| `livesessionusages`    | `[userId, sessionId]` (unik)                 | Rem kuota menit gratis Agora — dicatat di muka saat token terbit (Phase 2.5) |
 
 ---

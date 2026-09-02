@@ -39,6 +39,14 @@ const publicRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/bootcamps/BootcampDetailView.vue'),
       },
       {
+        // Live session butuh login; enrollment dan kuota dicek server saat
+        // meminta token, bukan di router guard
+        path: 'bootcamps/sessions/:sessionId/live',
+        name: 'live-session',
+        component: () => import('@/views/bootcamps/LiveSessionView.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
         path: 'checkout/result',
         name: 'checkout-result',
         component: () => import('@/views/checkout/CheckoutResultView.vue'),

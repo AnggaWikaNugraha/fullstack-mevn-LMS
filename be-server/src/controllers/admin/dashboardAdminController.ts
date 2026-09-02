@@ -4,24 +4,9 @@ import Course from '../../models/Course';
 import Order from '../../models/Order';
 import Enrollment from '../../models/Enrollment';
 import { AuthRequest } from '../../middlewares/authMiddleware';
+// Helper WIB dipakai bersama dengan rem kuota live session
+import { TIMEZONE, wibToUtc, nowInWib } from '../../utils/wib';
 
-// Semua pengelompokan waktu memakai jam WIB, bukan UTC bawaan MongoDB.
-// Tanpa ini pembayaran pukul 06:00 WIB tanggal 1 akan terhitung di bulan sebelumnya.
-const TIMEZONE = 'Asia/Jakarta';
-
-// WIB tetap UTC+7 sepanjang tahun, tidak ada penyesuaian musim
-const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
-
-// Mengubah waktu dinding WIB menjadi Date UTC yang setara, untuk dipakai di $match
-function wibToUtc(year: number, monthIndex: number, day = 1): Date {
-  return new Date(Date.UTC(year, monthIndex, day) - WIB_OFFSET_MS);
-}
-
-// Tahun dan bulan saat ini menurut jam WIB, bukan zona waktu server
-function nowInWib(): { year: number; monthIndex: number } {
-  const wib = new Date(Date.now() + WIB_OFFSET_MS);
-  return { year: wib.getUTCFullYear(), monthIndex: wib.getUTCMonth() };
-}
 
 // Menjumlahkan amount dari order berstatus paid, dengan penyaring tambahan opsional.
 // Dihitung di sisi basis data agar tidak perlu menarik seluruh order ke memori.

@@ -51,7 +51,7 @@ export interface User {
   _id: string;
   name: string;
   email: string;
-  role: 'student' | 'instructor' | 'admin';
+  role: 'student' | 'instructor' | 'admin' | 'mentor';
   isVerified: boolean;
   avatar_url: string | null;
   createdAt: string;

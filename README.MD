@@ -64,7 +64,8 @@ src/
 │   │   ├── useBootcampDetail.ts
 │   │   ├── useBootcampCheckout.ts # load snap.js, createOrder per batch, callback snap.pay
 │   │   ├── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
-│   │   └── useMyBootcamps.ts    # enrolled-bootcamp query + active/finished split + status badge & date helpers
+│   │   ├── useMyBootcamps.ts    # enrolled-bootcamp query + active/finished split + status badge & date helpers + liveSessionOf()
+│   │   └── useLiveSession.ts    # join/leave the Agora channel, local & remote tracks, mic/camera toggles
 │   ├── checkout/
 │   │   ├── useCheckout.ts     # load snap.js, createOrder, snap.pay callbacks
 │   │   └── useEnrollment.ts   # polling + timeout + manualVerify fallback
@@ -129,12 +130,13 @@ src/
 │   ├── bootcamps/
 │   │   ├── BootcampsView.vue
 │   │   ├── BootcampDetailView.vue
-│   │   └── CheckoutBootcampResultView.vue
+│   │   ├── CheckoutBootcampResultView.vue
+│   │   └── LiveSessionView.vue       # Agora video room — participant grid, mic/camera controls, Mentor badge
 │   ├── checkout/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
 │   │   ├── MyCoursesView.vue        # Grid of purchased courses + progress bar + "Sertifikat Tersedia" badge
-│   │   ├── MyBootcampsView.vue      # Grid of enrolled batches + status badge + next-session card
+│   │   ├── MyBootcampsView.vue      # Grid of enrolled batches + status badge + next-session card + "Gabung Sesi" button
 │   │   ├── ProfileView.vue          # Edit name, avatar URL, change password
 │   │   └── PurchaseHistoryView.vue  # Order history list + status badge
 │   ├── auth/
@@ -205,6 +207,7 @@ src/
 │   ├── taskController.ts        # Task submit, my-submission
 │   ├── userController.ts        # getProfile, updateProfile, changePassword
 │   ├── orderController.ts       # getMyOrders
+│   ├── liveSessionController.ts # Per-session Agora RTC token (enrollment + host + quota guard) + getLiveUsage
 │   └── admin/
 │       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete; topic_name resolved automatically from the Topic collection
 │       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (with correct_index)
@@ -213,6 +216,8 @@ src/
 │       ├── userAdminController.ts      # Admin user: listUsers (pagination+search) + getUserDetail (enrollments+orders+total_spent) + updateUserRole
 │       ├── taskAdminController.ts     # Admin task review: listSubmissions (filter by status + populate) + getSubmissionDetail (lesson+chapter+module+course+history) + reviewSubmission (approve → upsert Progress; reject → delete Progress + set feedback)
 │       └── dashboardAdminController.ts # Admin dashboard: getDashboardStats (counts + revenue + 5 recent orders) + getRevenueReport (12-month series + top courses + summary, all WIB-based)
+├── utils/
+│   └── wib.ts               # TIMEZONE, wibToUtc, nowInWib, startOfCurrentWibMonth — shared by the revenue report & the Agora quota guard
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
 │   ├── adminMiddleware.ts   # adminOnly — checks role === 'admin'
@@ -229,6 +234,7 @@ src/
 │   ├── Lesson.ts           # type: video|quiz|task, passing_score, is_locked
 │   ├── Progress.ts         # userId, lessonId, courseId — unique [userId, lessonId]
 │   ├── Certificate.ts      # userId, courseId, certificateId (unique UUID), issuedAt — unique [userId, courseId]
+│   ├── LiveSessionUsage.ts # userId, sessionId, minutes — Agora free-minute guard, unique [userId, sessionId]
 │   ├── QuizQuestion.ts     # options[], correct_index (never sent to FE)
 │   ├── QuizAttempt.ts      # answers[], score, passed — multiple attempts allowed
 │   ├── TaskSubmission.ts   # submission_url, note, status — unique [userId, lessonId]
@@ -329,7 +335,7 @@ src/
 | Bootcamp Checkout & Payment (Midtrans)            | ✅ Done         |
 | Bootcamp Saya (My Bootcamps)                      | ✅ Done         |
 | Course Completion Certificate (PDF download)      | ✅ Done         |
-| Live Session (Agora RTC)                          | 🔄 Coming Soon  |
+| Live Session (Agora RTC)                          | ✅ Done         |
 | Notifications                                     | 🔄 Coming Soon  |
 
 ---
@@ -1222,9 +1228,11 @@ User joins a live session
           |
           ├─→ Not authenticated          → redirect to login
           ├─→ Not enrolled in batch      → 403 Forbidden
-          └─→ Authenticated + enrolled
+          ├─→ Monthly minute budget spent → 403 "Kuota live session bulan ini sudah habis"
+          └─→ Authenticated + enrolled + budget available
                     |
                     ▼
+              BE records the estimated usage (upsert LiveSessionUsage)
               BE generates Agora RTC token
               (App ID + App Certificate + channelName + uid)
                     |
@@ -1236,25 +1244,87 @@ User joins a live session
 **Agora Integration:**
 - Channel name: derived from `BootcampSession._id` (unique per session)
 - Token expiry: short-lived (1 hour), generated on demand
+- ⚠️ `tokenExpire` and `privilegeExpire` in `RtcTokenBuilder.buildTokenWithUid()` are both **durations in seconds from now**, not absolute timestamps. Passing an epoch for either pushes the privilege past Agora's 24-hour cap and the gateway rejects it with `CAN_NOT_GET_GATEWAY_SERVER: invalid token, authorized failed` — the token still builds fine server-side, so the mistake only surfaces when the FE tries to join
 - App Certificate stored server-side only (never exposed to FE)
+
+**Cost model — why this project stays free:**
+
+Agora grants every account **10,000 free minutes per month**, resetting monthly rather than being a one-off trial. An account counts as a *free account* as long as no credit card has been added and no balance has been topped up — so **registering without any payment details is enough**. The consequence: with no card on file Agora has no way to bill you; running out of quota stops the service rather than producing a surprise invoice.
+
+Minutes are counted **per participant**, not per session:
+
+```
+Two-person test, 30 minutes   =    60 minutes  → ~166 of them per month
+3-hour session, 5 participants =   900 minutes  → 11 sessions per month
+3-hour session, 10 participants = 1,800 minutes  → 5 sessions per month
+```
+
+Rates beyond the quota: roughly $0.99/1,000 audio minutes and $3.99/1,000 HD video minutes. Participants with their camera off bill as the far cheaper audio tier — in a bootcamp class it is usually only the mentor whose camera is on.
+
+**Our own budget guard (`LiveSessionUsage`):**
+
+A hard stop coming from Agora's side surfaces as a raw SDK error in the UI. So the BE brakes first:
+
+```
+LiveSessionUsage — NEW model
+userId     → ref to User
+sessionId  → ref to BootcampSession
+minutes    → the minutes this join reserves
+createdAt  → used to sum the current month's usage
+```
+> Unique index `[userId, sessionId]` — a user refreshing the page is not counted twice.
+
+Three decisions shape it:
+
+- **Counted upfront, not on leave.** There is no reliable way to know when someone closes a tab. Recording the full session duration (`session_end_time − session_start_time`) the moment a token is issued always overstates real usage — for a brake, erring high is the correct direction.
+- **The budget lives in `.env`** as `AGORA_MONTHLY_MINUTE_BUDGET=8000` — leaving headroom below the real 10,000, since our estimate will never match Agora's accounting exactly.
+- **The month boundary uses WIB**, via the existing `wibToUtc()` / `nowInWib()` helpers in `dashboardAdminController.ts`, so the quota does not reset midday Indonesian time.
+
+**Host vs participant — who differs, and where it is enforced:**
+
+The split in the meeting room is not admin vs user but **mentor (host)** vs **participant**. Mentors hang off `BootcampPackage.mentors[]`, so the chain is `BootcampSession → batchId → BootcampBatch → packageId → BootcampPackage.mentors[]` — the same chain already walked for the enrollment check.
+
+| | Mentor (host) | Participant |
+|---|---|---|
+| Own mic & camera | ✓ | ✓ |
+| Leave session | ✓ | ✓ |
+| "Mentor" badge in the header | ✓ | — |
+| "Akhiri Sesi" button | ✓ | — (reads "Keluar") |
+| Must be enrolled in the batch | — (a mentor may always join) | ✓ |
+
+Two decisions matter:
+
+- **The role is sent by the server** as `role: 'host' | 'participant'` in the token response, rather than derived on the FE from `User.role`. Host status is **per session** — the same person can be a mentor in Bootcamp A and an ordinary participant in Bootcamp B.
+- **Both get `RtcRole.PUBLISHER`**, because participants in a class still need to ask questions. For a future lecture-only session, issue `RtcRole.SUBSCRIBER` to participants — Agora enforces that server-side, so a subscriber token technically cannot send audio or video no matter what the browser does. A difference that is only a `v-if` is not security.
 
 **Data Model Changes:**
 ```
-BootcampSession — no new fields needed; channel name = session _id
+BootcampSession   — no new fields needed; channel name = session _id
+LiveSessionUsage  — NEW model (see above)
 ```
 
+> Channel name = the session `_id`. Agora requires a uint32 `uid` and an ObjectId is far too long, so the **last 8 hex characters** of the user's ObjectId are used — stable for the same user, so rejoining keeps the same uid.
+
 **BE Tasks:**
-- [ ] Add `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE` to `.env`
-- [ ] Install `agora-token` (npm) — Agora token generation library
-- [ ] `POST /api/bootcamps/sessions/:sessionId/token` — validate enrollment, generate RTC token, return `{ token, channelName, appId, uid }`
-- [ ] Enrollment check middleware — verify user is registered for the batch that owns this session
+- [x] Add `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE` + `AGORA_MONTHLY_MINUTE_BUDGET` to `.env` and `.env.example`
+- [x] Install `agora-token` (npm) — Agora token generation library
+- [x] `LiveSessionUsage` model (`userId`, `sessionId`, `minutes`) — unique index `[userId, sessionId]` + a `createdAt` index
+- [x] `src/utils/wib.ts` — `wibToUtc` / `nowInWib` / `startOfCurrentWibMonth` moved out of `dashboardAdminController` so the revenue report and the quota guard share one definition of a month boundary
+- [x] `POST /api/bootcamps/sessions/:sessionId/token` — validate enrollment → check the current month's budget → record usage → generate the RTC token, return `{ token, appId, channelName, uid, role, session }`
+- [x] The enrollment check lives **inline in the controller** rather than as a separate middleware — only one route needs it, and the same lookup (`session → batch → package`) already runs there to decide who is a mentor
+- [x] `GET /api/admin/dashboard/live-usage` — remaining budget for the current month (`budget`, `used`, `remaining`, `percentage`). It hangs off `dashboardAdminRoutes`, already guarded by `protect + adminOnly`, so the path sits under `/dashboard` rather than the originally planned `/api/admin/live-usage` — a whole new route file for a single endpoint was not worth it
 
 **FE Tasks:**
-- [ ] Install `agora-rtc-sdk-ng` (npm)
-- [ ] `src/api/bootcamps.ts` — add `getSessionToken(sessionId)`
-- [ ] `src/composables/bootcamps/useLiveSession.ts` — join/leave channel, manage local + remote tracks
-- [ ] `src/views/bootcamps/LiveSessionView.vue` — video grid (mentor + participants), mic/camera toggle, leave button
-- [ ] Add route `/bootcamps/sessions/:sessionId/live` → `LiveSessionView`
+- [x] Install `agora-rtc-sdk-ng` (npm) — imported **dynamically**, so its 1.5 MB bundle is only fetched when the session page opens
+- [x] `src/types/bootcamps.ts` — add `LiveSessionToken`
+- [x] `src/api/bootcamps.ts` — add `getSessionToken(sessionId)`
+- [x] `src/composables/bootcamps/useLiveSession.ts` — join/leave channel, manage local + remote tracks. SDK objects live in `shallowRef` so Vue does not wrap them in a proxy (which can break SDK internals), and the channel is also released on `pagehide` because closing a tab never fires `onBeforeUnmount`
+- [x] `src/views/bootcamps/LiveSessionView.vue` — video grid (mentor + participants), mic/camera toggle, leave button; the **Mentor** badge and the "Akhiri Sesi" wording appear for hosts only; a 403 from the BE is rendered verbatim rather than as a raw SDK error
+- [x] `MyBootcampsView.vue` — a "Gabung Sesi Sekarang" button on cards with a running session; the door opens 15 minutes before the schedule and closes itself once the session ends, driven by a `now` ref ticking every 30 seconds so the button appears and disappears without a reload
+- [x] `src/types/auth.ts` — add `'mentor'` to `User['role']`; the BE enum has had it since Phase 6.5 but the FE type lagged behind
+- [x] Add route `/bootcamps/sessions/:sessionId/live` → `LiveSessionView` (`meta.requiresAuth`; enrollment and quota stay a server decision made when the token is requested, not a router guard)
+
+> If the bootcamp ever runs regularly with dozens of participants, moving to **self-hosted LiveKit** (Apache 2.0) is cheap: the token-server shape is identical, only the token library on the BE and the SDK on the FE change.
 
 ---
 
@@ -2539,6 +2609,7 @@ issuedAt        → Date
 | PATCH  | /api/admin/sessions/:id                       | Update session                                                       | JWT + Admin |
 | DELETE | /api/admin/sessions/:id                       | Delete session                                                       | JWT + Admin |
 | GET    | /api/admin/dashboard/revenue                  | Revenue report — 12-month series (split course/bootcamp) + top courses & bootcamps + summary (`?year=`, defaults to current year) | JWT + Admin |
+| GET    | /api/admin/dashboard/live-usage               | Remaining Agora minute budget for the current month (budget, used, remaining, percentage) | JWT + Admin |
 
 ### Bootcamp Checkout & Enrollment (Phase 7)
 
@@ -2548,6 +2619,7 @@ issuedAt        → Date
 | POST   | /api/checkout/webhook                         | *(shared with course checkout)* — branches on `order.type` to upsert Enrollment or BootcampEnrollment | -    |
 | GET    | /api/checkout/verify/:orderId                 | *(shared with course checkout)* — same branch, used by the manual fallback button | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | Bootcamp batches the user joined + batch status, session count and nearest session | JWT  |
+| POST   | /api/bootcamps/sessions/:sessionId/token      | Agora RTC token for a session — checks enrollment, decides host/participant, refuses once the month's minute budget is spent | JWT  |
 | GET    | /api/bootcamps/enrollments/check/:batchId     | Check whether the user is enrolled in this batch — must be registered before `/api/bootcamps/:id` | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | List all of the user's bootcamp enrollments                          | JWT  |
 
@@ -2568,16 +2640,19 @@ issuedAt        → Date
 | `PORT`                  | `3000`                                       | Express server port                      |
 | `MONGODB_URI`           | `mongodb+srv://...`                          | MongoDB Atlas connection string          |
 | `JWT_SECRET`            | `your_jwt_secret`                            | Secret for signing access tokens         |
-| `JWT_EXPIRES_IN`        | `15m`                                        | Access token expiry                      |
 | `REFRESH_TOKEN_SECRET`  | `your_refresh_secret`                        | Secret for signing refresh tokens        |
-| `REFRESH_TOKEN_EXPIRES_IN` | `1d`                                      | Refresh token expiry                     |
 | `NODE_ENV`              | `development`                                | Environment mode                         |
+| `SMTP_USER`             | `you@gmail.com`                              | Gmail address that sends the OTP         |
+| `SMTP_PASS`             | `xxxx xxxx xxxx xxxx`                        | Gmail **App Password**, not the account password |
 | `GOOGLE_CLIENT_ID`      | `xxxx.apps.googleusercontent.com`            | Google OAuth client ID                   |
 | `GOOGLE_CLIENT_SECRET`  | `GOCSPX-xxxx`                                | Google OAuth client secret               |
 | `GOOGLE_REDIRECT_URI`   | `http://localhost:5173/auth/google/callback` | Must match Google Console & FE env       |
 | `MIDTRANS_SERVER_KEY`   | `Mid-server-xxxx`                            | Midtrans server key (never exposed to FE)|
 | `MIDTRANS_CLIENT_KEY`   | `Mid-client-xxxx`                            | Midtrans client key                      |
 | `MIDTRANS_IS_PRODUCTION`| `false`                                      | `true` for production environment        |
+| `AGORA_APP_ID`          | `a1b2c3...`                                  | App ID from the Agora Console            |
+| `AGORA_APP_CERTIFICATE` | `d4e5f6...`                                  | App Certificate — server-side only, never exposed to the FE |
+| `AGORA_MONTHLY_MINUTE_BUDGET` | `8000`                                 | Our own guard; leaves headroom below Agora's free 10,000 minutes/month |
 
 ### Frontend (`fe-apps/.env`)
 
@@ -2793,5 +2868,6 @@ issuedAt        → Date
 | `bootcampsessions`     | `batchId`                                    | -                                                                    |
 | `bootcampenrollments`  | `[userId, batchId]` (unique)                 | Created after bootcamp payment settlement (Phase 7)                  |
 | `certificates`         | `[userId, courseId]` (unique), `certificateId` (unique) | Issued when course progress = 100% (Phase 7)            |
+| `livesessionusages`    | `[userId, sessionId]` (unique)               | Guard for Agora's free minute budget — recorded upfront when a token is issued (Phase 2.5) |
 
 ---

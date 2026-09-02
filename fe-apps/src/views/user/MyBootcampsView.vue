@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarDays, Clock, Layers, Wifi, MapPin, Blend } from '@lucide/vue';
+import { CalendarDays, Clock, Layers, Wifi, MapPin, Blend, Video } from '@lucide/vue';
 import {
   useMyBootcamps,
   bootcampStatusBadge,
@@ -8,7 +8,7 @@ import {
   formatSessionDate,
 } from '@/composables/bootcamps/useMyBootcamps';
 
-const { bootcamps, active, finished, isLoading, isError } = useMyBootcamps();
+const { bootcamps, active, finished, isLoading, isError, liveSessionOf } = useMyBootcamps();
 
 const packageTypeIcon: Record<string, typeof Wifi> = {
   online: Wifi,
@@ -138,6 +138,17 @@ const packageTypeIcon: Record<string, typeof Wifi> = {
               <p v-else class="mt-3 text-xs text-gray-400">
                 Jadwal sesi belum tersedia.
               </p>
+
+              <!-- Sesi yang sedang berlangsung — pintu masuk terbuka 15 menit
+                   sebelum jadwal, hilang sendiri setelah sesi berakhir -->
+              <RouterLink
+                v-if="liveSessionOf(item)"
+                :to="`/bootcamps/sessions/${liveSessionOf(item)!._id}/live`"
+                class="mt-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+              >
+                <Video class="w-4 h-4" />
+                Gabung Sesi Sekarang
+              </RouterLink>
 
               <RouterLink
                 v-if="item.package"

@@ -5,6 +5,7 @@ import type {
   BootcampDetailResponse,
   BootcampEnrollmentStatus,
   MyBootcampsResponse,
+  LiveSessionToken,
 } from '@/types/bootcamps';
 import type { CreateOrderResponse } from '@/types/checkout';
 
@@ -29,3 +30,6 @@ export const checkBootcampEnrollment = (batchId: string) =>
 
 export const getMyBootcampEnrollments = () =>
   apiClient.get<ApiResponse<MyBootcampsResponse>>('/bootcamps/my-enrollments');
+
+export const getSessionToken = (sessionId: string) =>
+  apiClient.post<ApiResponse<LiveSessionToken>>(`/bootcamps/sessions/${sessionId}/token`);
