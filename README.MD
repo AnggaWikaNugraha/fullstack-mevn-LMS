@@ -121,6 +121,7 @@ src/
 │   └── router.d.ts            # Extend RouteMeta: requiresAuth, requiresAdmin, guestOnly
 ├── utils/
 │   ├── format.ts              # formatRupiah, formatDate, progressPercent
+│   ├── session.ts             # isSessionJoinable() — session schedule window, used by participant cards & admin session rows
 │   └── snap.ts                # loadSnapScript() — shared by the course and bootcamp checkout
 ├── views/
 │   ├── HomeView.vue
@@ -160,7 +161,7 @@ src/
 │       ├── bootcamps/
 │       │   ├── BootcampListView.vue  # Package table + status badge + Content/Edit/Delete buttons
 │       │   ├── BootcampFormView.vue  # Create/edit package form; mentor picker (toggle users with role 'mentor' + occupation input)
-│       │   └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge, participant count badge); session rows (number badge + date+time chip); add-session form as an expanding card; Bootcamp Participants panel (batch filter pills + participant list)
+│       │   └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge, participant count badge); session rows (number badge + date+time chip + Gabung button while the session runs); add-session form as an expanding card; Bootcamp Participants panel (batch filter pills + participant list)
 │       ├── tasks/
 │       │   ├── TaskListView.vue      # Submission table + filter pills (All/Pending/Approved/Rejected) + quick Approve button + Review/Detail link + pagination
 │       │   └── TaskDetailView.vue    # Review page: full task brief, student answer (URL + note), decision panel (feedback + Approve/Reject), student/course/history sidebar
@@ -1284,17 +1285,19 @@ Three decisions shape it:
 
 The split in the meeting room is not admin vs user but **mentor (host)** vs **participant**. Mentors hang off `BootcampPackage.mentors[]`, so the chain is `BootcampSession → batchId → BootcampBatch → packageId → BootcampPackage.mentors[]` — the same chain already walked for the enrollment check.
 
-| | Mentor (host) | Participant |
-|---|---|---|
-| Own mic & camera | ✓ | ✓ |
-| Leave session | ✓ | ✓ |
-| "Mentor" badge in the header | ✓ | — |
-| "Akhiri Sesi" button | ✓ | — (reads "Keluar") |
-| Must be enrolled in the batch | — (a mentor may always join) | ✓ |
+| | Mentor (host) | Admin (observer) | Participant |
+|---|---|---|---|
+| Own mic & camera | ✓ | ✓ | ✓ |
+| Leave session | ✓ | ✓ | ✓ |
+| Header badge | "Mentor" (indigo) | "Admin (pengawas)" (amber) | — |
+| "Akhiri Sesi" button | ✓ | ✓ | — (reads "Keluar") |
+| Must be enrolled in the batch | — | — | ✓ |
+| Way in | the session URL directly | a **Gabung** button on the session row of the admin bootcamp content page | the **Gabung Sesi Sekarang** button on `/my-bootcamps` |
 
-Two decisions matter:
+Three decisions matter:
 
-- **The role is sent by the server** as `role: 'host' | 'participant'` in the token response, rather than derived on the FE from `User.role`. Host status is **per session** — the same person can be a mentor in Bootcamp A and an ordinary participant in Bootcamp B.
+- **The role is sent by the server** as `role: 'host' | 'admin' | 'participant'` in the token response, rather than derived on the FE from `User.role`. Host status is **per session** — the same person can be a mentor in Bootcamp A and an ordinary participant in Bootcamp B.
+- **Admins are distinguished from mentors, not merged into them.** Both hold the same moderation powers, but the badge differs so participants can tell that the person who joined is a platform supervisor rather than their instructor. If an admin also happens to be a mentor on that package, the mentor status wins.
 - **Both get `RtcRole.PUBLISHER`**, because participants in a class still need to ask questions. For a future lecture-only session, issue `RtcRole.SUBSCRIBER` to participants — Agora enforces that server-side, so a subscriber token technically cannot send audio or video no matter what the browser does. A difference that is only a `v-if` is not security.
 
 **Data Model Changes:**
@@ -1311,6 +1314,7 @@ LiveSessionUsage  — NEW model (see above)
 - [x] `LiveSessionUsage` model (`userId`, `sessionId`, `minutes`) — unique index `[userId, sessionId]` + a `createdAt` index
 - [x] `src/utils/wib.ts` — `wibToUtc` / `nowInWib` / `startOfCurrentWibMonth` moved out of `dashboardAdminController` so the revenue report and the quota guard share one definition of a month boundary
 - [x] `POST /api/bootcamps/sessions/:sessionId/token` — validate enrollment → check the current month's budget → record usage → generate the RTC token, return `{ token, appId, channelName, uid, role, session }`
+- [x] Mentors **and** admins may join without an enrollment; the role comes back as `'host'` / `'admin'` / `'participant'`. An admin's minutes are still recorded, because those Agora minutes are genuinely spent
 - [x] The enrollment check lives **inline in the controller** rather than as a separate middleware — only one route needs it, and the same lookup (`session → batch → package`) already runs there to decide who is a mentor
 - [x] `GET /api/admin/dashboard/live-usage` — remaining budget for the current month (`budget`, `used`, `remaining`, `percentage`). It hangs off `dashboardAdminRoutes`, already guarded by `protect + adminOnly`, so the path sits under `/dashboard` rather than the originally planned `/api/admin/live-usage` — a whole new route file for a single endpoint was not worth it
 
@@ -1320,7 +1324,9 @@ LiveSessionUsage  — NEW model (see above)
 - [x] `src/api/bootcamps.ts` — add `getSessionToken(sessionId)`
 - [x] `src/composables/bootcamps/useLiveSession.ts` — join/leave channel, manage local + remote tracks. SDK objects live in `shallowRef` so Vue does not wrap them in a proxy (which can break SDK internals), and the channel is also released on `pagehide` because closing a tab never fires `onBeforeUnmount`
 - [x] `src/views/bootcamps/LiveSessionView.vue` — video grid (mentor + participants), mic/camera toggle, leave button; the **Mentor** badge and the "Akhiri Sesi" wording appear for hosts only; a 403 from the BE is rendered verbatim rather than as a raw SDK error
+- [x] `src/utils/session.ts` — `isSessionJoinable()` and its schedule-window maths moved into a shared util, used by the participant cards in `MyBootcampsView` and the session rows in the admin `BootcampContentView`
 - [x] `MyBootcampsView.vue` — a "Gabung Sesi Sekarang" button on cards with a running session; the door opens 15 minutes before the schedule and closes itself once the session ends, driven by a `now` ref ticking every 30 seconds so the button appears and disappears without a reload
+- [x] `BootcampContentView.vue` — a green **Gabung** button on the row of a session currently running, the admin's way into the session room (driven by the same ticking `now`)
 - [x] `src/types/auth.ts` — add `'mentor'` to `User['role']`; the BE enum has had it since Phase 6.5 but the FE type lagged behind
 - [x] Add route `/bootcamps/sessions/:sessionId/live` → `LiveSessionView` (`meta.requiresAuth`; enrollment and quota stay a server decision made when the token is requested, not a router guard)
 

@@ -31,7 +31,11 @@ export function useLiveSession(sessionId: string) {
   const micOn = ref(true);
   const cameraOn = ref(true);
 
+  // Mentor dan admin sama-sama punya kewenangan moderasi, tapi penandanya
+  // dibedakan supaya peserta tahu siapa yang sedang masuk
   const isHost = computed(() => meta.value?.role === 'host');
+  const isAdminObserver = computed(() => meta.value?.role === 'admin');
+  const isModerator = computed(() => isHost.value || isAdminObserver.value);
   const sessionName = computed(() => meta.value?.session.session_name ?? '');
 
   function syncRemote() {
@@ -139,7 +143,7 @@ export function useLiveSession(sessionId: string) {
   });
 
   return {
-    meta, isHost, sessionName,
+    meta, isHost, isAdminObserver, isModerator, sessionName,
     localVideo, remoteUsers,
     joining, joined, errorMessage,
     micOn, cameraOn,

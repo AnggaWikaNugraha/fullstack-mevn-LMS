@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onScopeDispose } from 'vue';
 import { useRoute } from 'vue-router';
-import { ChevronDown, Pencil, Trash2, Plus, X, CalendarDays, Users, Wifi, MapPin, Blend } from '@lucide/vue';
+import { ChevronDown, Pencil, Trash2, Plus, X, CalendarDays, Users, Wifi, MapPin, Blend, Video } from '@lucide/vue';
+import { isSessionJoinable } from '@/utils/session';
 import { useBootcampEditor } from '@/composables/admin/useBootcampEditor';
 import {
   useBootcampParticipants,
@@ -30,6 +31,12 @@ const {
   batchFilter,
   batchesWithParticipants,
 } = useBootcampParticipants(packageId);
+
+// Jam berjalan supaya tombol "Gabung" muncul dan hilang sendiri saat sesi
+// dimulai atau berakhir, tanpa perlu memuat ulang halaman
+const now = ref(Date.now());
+const ticker = setInterval(() => { now.value = Date.now(); }, 30_000);
+onScopeDispose(() => clearInterval(ticker));
 
 // Satu batch saja yang bisa buka form tambah sesi sekaligus
 const showAddSession = ref<string | null>(null);
@@ -298,6 +305,17 @@ function toInputDate(iso: string) {
                   </span>
                 </div>
               </div>
+              <!-- Gerbang masuk admin — hanya muncul selama sesi berlangsung.
+                   Admin masuk sebagai pengawas, ditandai berbeda dari mentor. -->
+              <RouterLink
+                v-if="isSessionJoinable(session, now)"
+                :to="`/bootcamps/sessions/${session._id}/live`"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors shrink-0"
+              >
+                <Video class="w-3.5 h-3.5" />
+                Gabung
+              </RouterLink>
+
               <!-- Aksi -->
               <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                 <button class="p-1.5 text-gray-300 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"

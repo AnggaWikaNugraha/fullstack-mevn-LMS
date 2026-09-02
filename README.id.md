@@ -121,6 +121,7 @@ src/
 │   └── router.d.ts            # Perluasan RouteMeta: requiresAuth, requiresAdmin, guestOnly
 ├── utils/
 │   ├── format.ts              # formatRupiah, formatDate, progressPercent
+│   ├── session.ts             # isSessionJoinable() — rentang jadwal sesi, dipakai kartu peserta & baris sesi admin
 │   └── snap.ts                # loadSnapScript() — dipakai bersama checkout course & bootcamp
 ├── views/
 │   ├── HomeView.vue
@@ -160,7 +161,7 @@ src/
 │       ├── bootcamps/
 │       │   ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
 │       │   ├── BootcampFormView.vue  # Form create/edit package; pemilih mentor (toggle user dengan role 'mentor' + input occupation)
-│       │   └── BootcampContentView.vue # Editor berbasis kartu: strip mentor; kartu batch (klik untuk mengembang, bar kuota, badge tipe, badge jumlah peserta); baris session (badge nomor + chip tanggal+jam); form tambah sesi sebagai kartu yang mengembang; panel Peserta Bootcamp (pill filter batch + daftar peserta)
+│       │   └── BootcampContentView.vue # Editor berbasis kartu: strip mentor; kartu batch (klik untuk mengembang, bar kuota, badge tipe, badge jumlah peserta); baris session (badge nomor + chip tanggal+jam + tombol Gabung saat sesi berlangsung); form tambah sesi sebagai kartu yang mengembang; panel Peserta Bootcamp (pill filter batch + daftar peserta)
 │       ├── tasks/
 │       │   ├── TaskListView.vue      # Tabel submission + pill filter (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui cepat + tautan Review/Detail + paginasi
 │       │   └── TaskDetailView.vue    # Halaman review: soal tugas lengkap, jawaban peserta (URL + catatan), panel keputusan (feedback + Setujui/Tolak), sidebar peserta/kursus/riwayat
@@ -1282,17 +1283,19 @@ Tiga keputusan yang menentukan bentuknya:
 
 Yang berhadapan di ruang meeting bukan admin vs user, melainkan **mentor (host)** vs **peserta**. Mentor menempel di `BootcampPackage.mentors[]`, jadi rantainya `BootcampSession → batchId → BootcampBatch → packageId → BootcampPackage.mentors[]` — rantai yang memang sudah ditelusuri untuk mengecek enrollment.
 
-| | Mentor (host) | Peserta |
-|---|---|---|
-| Mic & kamera sendiri | ✓ | ✓ |
-| Keluar sesi | ✓ | ✓ |
-| Badge "Mentor" di header | ✓ | — |
-| Tombol "Akhiri Sesi" | ✓ | — (tertulis "Keluar") |
-| Wajib terdaftar di batch | — (mentor selalu boleh masuk) | ✓ |
+| | Mentor (host) | Admin (pengawas) | Peserta |
+|---|---|---|---|
+| Mic & kamera sendiri | ✓ | ✓ | ✓ |
+| Keluar sesi | ✓ | ✓ | ✓ |
+| Badge di header | "Mentor" (indigo) | "Admin (pengawas)" (amber) | — |
+| Tombol "Akhiri Sesi" | ✓ | ✓ | — (tertulis "Keluar") |
+| Wajib terdaftar di batch | — | — | ✓ |
+| Pintu masuk | URL sesi langsung | tombol **Gabung** di baris sesi pada halaman konten bootcamp admin | tombol **Gabung Sesi Sekarang** di `/my-bootcamps` |
 
-Dua keputusan penting:
+Tiga keputusan penting:
 
-- **Peran dikirim server** sebagai `role: 'host' | 'participant'` di balasan token, bukan diturunkan FE dari `User.role`. Status host itu **per sesi** — orang yang sama bisa jadi mentor di Bootcamp A dan peserta biasa di Bootcamp B.
+- **Peran dikirim server** sebagai `role: 'host' | 'admin' | 'participant'` di balasan token, bukan diturunkan FE dari `User.role`. Status host itu **per sesi** — orang yang sama bisa jadi mentor di Bootcamp A dan peserta biasa di Bootcamp B.
+- **Admin dibedakan dari mentor, bukan disamakan.** Keduanya punya kewenangan moderasi yang sama, tapi badge-nya berbeda supaya peserta tahu yang masuk itu pengawas platform, bukan pengajarnya. Kalau seorang admin kebetulan juga terdaftar sebagai mentor package tersebut, status mentor yang dipakai.
 - **Keduanya `RtcRole.PUBLISHER`**, karena peserta kelas tetap perlu bisa bertanya. Kalau nanti ada sesi kuliah satu arah, terbitkan `RtcRole.SUBSCRIBER` untuk peserta — Agora menegakkannya di sisi server, sehingga pemegang token subscriber secara teknis tidak bisa mengirim audio/video apa pun yang dilakukan di browser. Perbedaan yang hanya berupa `v-if` bukan pengamanan.
 
 **Perubahan Model Data:**
@@ -1309,6 +1312,7 @@ LiveSessionUsage  — model BARU (lihat di atas)
 - [x] Model `LiveSessionUsage` (`userId`, `sessionId`, `minutes`) — indeks unik `[userId, sessionId]` + indeks `createdAt`
 - [x] `src/utils/wib.ts` — helper `wibToUtc` / `nowInWib` / `startOfCurrentWibMonth` dipindah keluar dari `dashboardAdminController` agar laporan pendapatan dan rem kuota memakai satu sumber batas bulan yang sama
 - [x] `POST /api/bootcamps/sessions/:sessionId/token` — validasi enrollment → cek kuota bulan berjalan → catat pemakaian → buat token RTC, kembalikan `{ token, appId, channelName, uid, role, session }`
+- [x] Mentor **dan** admin boleh masuk tanpa enrollment; peran dikembalikan `'host'` / `'admin'` / `'participant'`. Pemakaian menit admin tetap dicatat, sebab menit Agora-nya nyata terpakai
 - [x] Pengecekan enrollment dilakukan **inline di controller**, bukan sebagai middleware terpisah — hanya satu route yang memakainya, dan datanya (`session → batch → package`) sudah ditelusuri di tempat yang sama untuk menentukan mentor
 - [x] `GET /api/admin/dashboard/live-usage` — sisa kuota bulan berjalan (`budget`, `used`, `remaining`, `percentage`) untuk dipantau admin. Menempel di `dashboardAdminRoutes` yang sudah dijaga `protect + adminOnly`, jadi pathnya di bawah `/dashboard` — bukan `/api/admin/live-usage` seperti rencana awal, karena membuat berkas route baru untuk satu endpoint tidak sepadan
 
@@ -1318,7 +1322,9 @@ LiveSessionUsage  — model BARU (lihat di atas)
 - [x] `src/api/bootcamps.ts` — tambahkan `getSessionToken(sessionId)`
 - [x] `src/composables/bootcamps/useLiveSession.ts` — bergabung/keluar kanal, kelola track lokal + jarak jauh. Objek SDK disimpan di `shallowRef` supaya Vue tidak membungkusnya proxy (bisa merusak internal SDK), dan kanal ikut dilepas lewat `pagehide` karena menutup tab tidak memicu `onBeforeUnmount`
 - [x] `src/views/bootcamps/LiveSessionView.vue` — grid video (mentor + peserta), toggle mikrofon/kamera, tombol keluar; badge **Mentor** dan tombol "Akhiri Sesi" hanya untuk host; pesan 403 dari BE ditampilkan apa adanya, bukan error mentah SDK
+- [x] `src/utils/session.ts` — `isSessionJoinable()` beserta perhitungan rentang jadwalnya dipindah ke util bersama, dipakai kartu peserta di `MyBootcampsView` dan baris sesi di `BootcampContentView` admin
 - [x] `MyBootcampsView.vue` — tombol "Gabung Sesi Sekarang" pada kartu yang punya sesi berjalan; pintu masuk terbuka 15 menit sebelum jadwal dan menutup sendiri setelah sesi berakhir, digerakkan `now` yang berdetak tiap 30 detik sehingga tombolnya muncul/hilang tanpa muat ulang
+- [x] `BootcampContentView.vue` — tombol **Gabung** hijau di baris sesi yang sedang berlangsung, sebagai gerbang masuk admin ke ruang sesi (memakai `now` berdetak yang sama)
 - [x] `src/types/auth.ts` — tambahkan `'mentor'` ke `User['role']`; enum BE sudah punya sejak Phase 6.5 tapi tipe FE tertinggal
 - [x] Tambahkan route `/bootcamps/sessions/:sessionId/live` → `LiveSessionView` (`meta.requiresAuth`; enrollment dan kuota tetap diputuskan server saat token diminta, bukan di router guard)
 

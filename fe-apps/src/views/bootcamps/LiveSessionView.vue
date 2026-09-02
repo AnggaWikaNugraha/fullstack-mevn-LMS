@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, ShieldCheck, Users } from '@lucide/vue';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, ShieldCheck, Eye, Users } from '@lucide/vue';
 import { useLiveSession } from '@/composables/bootcamps/useLiveSession';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -11,7 +11,7 @@ const auth = useAuthStore();
 const sessionId = route.params.sessionId as string;
 
 const {
-  meta, isHost, sessionName,
+  meta, isHost, isAdminObserver, isModerator, sessionName,
   remoteUsers,
   joining, joined, errorMessage,
   micOn, cameraOn,
@@ -42,6 +42,13 @@ async function handleLeave() {
         class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-medium"
       >
         <ShieldCheck class="w-3.5 h-3.5" /> Mentor
+      </span>
+      <!-- Admin masuk sebagai pengawas — dibedakan dari mentor agar peserta tahu -->
+      <span
+        v-else-if="joined && isAdminObserver"
+        class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-medium"
+      >
+        <Eye class="w-3.5 h-3.5" /> Admin (pengawas)
       </span>
       <span v-if="joined" class="flex items-center gap-1.5 text-xs text-gray-400">
         <Users class="w-3.5 h-3.5" /> {{ remoteUsers.length + 1 }}
@@ -77,7 +84,7 @@ async function handleLeave() {
             Kamera mati
           </div>
           <p class="absolute bottom-2 left-2 text-xs bg-black/60 px-2 py-1 rounded-lg">
-            {{ auth.user?.name ?? 'Kamu' }} (kamu){{ isHost ? ' · mentor' : '' }}
+            {{ auth.user?.name ?? 'Kamu' }} (kamu){{ isHost ? ' · mentor' : isAdminObserver ? ' · admin' : '' }}
           </p>
         </div>
 
@@ -128,7 +135,7 @@ async function handleLeave() {
           @click="handleLeave()"
         >
           <PhoneOff class="w-5 h-5" />
-          {{ isHost ? 'Akhiri Sesi' : 'Keluar' }}
+          {{ isModerator ? 'Akhiri Sesi' : 'Keluar' }}
         </button>
       </div>
     </template>

@@ -99,7 +99,7 @@ export interface LiveSessionToken {
   appId: string;
   channelName: string;
   uid: number;
-  role: 'host' | 'participant';
+  role: 'host' | 'participant' | 'admin';
   session: {
     _id: string;
     title: string;

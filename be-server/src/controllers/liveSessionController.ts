@@ -5,6 +5,7 @@ import BootcampBatch from '../models/BootcampBatch';
 import BootcampPackage from '../models/BootcampPackage';
 import BootcampEnrollment from '../models/BootcampEnrollment';
 import LiveSessionUsage from '../models/LiveSessionUsage';
+import User from '../models/User';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { startOfCurrentWibMonth } from '../utils/wib';
 
@@ -81,16 +82,23 @@ export const getSessionToken = async (req: AuthRequest, res: Response, next: Nex
 
     // Mentor menempel di package, bukan batch — rantainya sesi → batch → package
     const pkg = await BootcampPackage.findById(batch.packageId).select('mentors');
-    const isHost = !!pkg?.mentors.some((m) => m.userId.toString() === req.userId);
+    const isMentor = !!pkg?.mentors.some((m) => m.userId.toString() === req.userId);
 
-    // Mentor boleh masuk tanpa enrollment; peserta wajib terdaftar di batch ini
-    if (!isHost) {
+    // Admin boleh masuk sebagai pengawas tanpa enrollment maupun status mentor
+    const user = await User.findById(req.userId).select('role');
+    const isAdmin = user?.role === 'admin';
+
+    // Mentor dan admin boleh masuk tanpa enrollment; peserta wajib terdaftar
+    if (!isMentor && !isAdmin) {
       const enrollment = await BootcampEnrollment.findOne({ userId: req.userId, batchId: session.batchId });
       if (!enrollment) {
         res.status(403).json({ success: false, message: 'Kamu belum terdaftar di batch bootcamp ini.' });
         return;
       }
     }
+
+    // Mentor tetap didahulukan: admin yang kebetulan juga mentor tampil sebagai mentor
+    const participantRole = isMentor ? 'host' : isAdmin ? 'admin' : 'participant';
 
     const minutes = sessionDurationMinutes(session.session_start_time, session.session_end_time);
 
@@ -138,7 +146,7 @@ export const getSessionToken = async (req: AuthRequest, res: Response, next: Nex
         uid,
         // Peran ditentukan server agar FE tidak perlu menebak dari User.role —
         // status host itu per sesi, bukan sifat global user
-        role: isHost ? 'host' : 'participant',
+        role: participantRole,
         session: {
           _id: session._id,
           title: session.title,
