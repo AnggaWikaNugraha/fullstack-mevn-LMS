@@ -1,23 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { LogOut, User, BookOpen, ShoppingBag, ChevronDown, Menu, X } from '@lucide/vue';
+import { ref, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { LogOut, User, BookOpen, ShoppingBag, ChevronDown, Menu, X, Shield } from '@lucide/vue';
 import { useAuthStore } from '@/stores/authStore';
 import { logout as logoutApi } from '@/api/auth';
 import { useDeviceId } from '@/composables/useDeviceId';
+import { adminMenuItems, isAdminMenuActive } from '@/composables/admin/useAdminMenu';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 const { getDeviceId } = useDeviceId();
 const mobileOpen = ref(false);
 const userMenuOpen = ref(false);
+const adminMenuOpen = ref(false);
+
+// Menu admin hanya untuk role admin — aturannya sama dengan guard requiresAdmin di router
+const isAdmin = computed(() => auth.isAuthenticated && auth.user?.role === 'admin');
+
+// Hanya satu dropdown yang boleh terbuka agar panelnya tidak saling tumpuk
+function toggleAdminMenu() {
+  adminMenuOpen.value = !adminMenuOpen.value;
+  userMenuOpen.value = false;
+}
+function toggleUserMenu() {
+  userMenuOpen.value = !userMenuOpen.value;
+  adminMenuOpen.value = false;
+}
+
+function closeMenus() {
+  adminMenuOpen.value = false;
+  userMenuOpen.value = false;
+  mobileOpen.value = false;
+}
 
 async function handleLogout() {
   try {
     await logoutApi(getDeviceId());
   } finally {
     auth.logout();
-    userMenuOpen.value = false;
+    closeMenus();
     router.push('/auth/login');
   }
 }
@@ -45,11 +67,47 @@ async function handleLogout() {
       <!-- Desktop auth -->
       <div class="hidden md:flex items-center gap-3">
         <template v-if="auth.isAuthenticated">
+          <!-- Dropdown khusus admin — pintasan ke seluruh halaman /admin -->
+          <div v-if="isAdmin" class="relative">
+            <button
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors"
+              :class="route.path.startsWith('/admin')
+                ? 'bg-indigo-50 text-indigo-600 border-indigo-200'
+                : 'text-gray-600 border-gray-200 hover:text-indigo-600 hover:border-indigo-300'"
+              @click="toggleAdminMenu()"
+            >
+              <Shield class="w-4 h-4" />
+              <span>Admin</span>
+              <ChevronDown class="w-3.5 h-3.5" />
+            </button>
+
+            <!-- Panel dropdown admin -->
+            <div
+              v-if="adminMenuOpen"
+              class="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50"
+              @mouseleave="adminMenuOpen = false"
+            >
+              <RouterLink
+                v-for="item in adminMenuItems"
+                :key="item.to"
+                :to="item.to"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors"
+                :class="isAdminMenuActive(item, route.path)
+                  ? 'bg-indigo-50 text-indigo-600 font-medium'
+                  : 'text-gray-700 hover:bg-gray-50'"
+                @click="adminMenuOpen = false"
+              >
+                <component :is="item.icon" class="w-4 h-4 shrink-0 text-gray-400" />
+                {{ item.label }}
+              </RouterLink>
+            </div>
+          </div>
+
           <!-- Dropdown user menu -->
           <div class="relative">
             <button
               class="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
-              @click="userMenuOpen = !userMenuOpen"
+              @click="toggleUserMenu()"
             >
               <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
                 <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" class="w-full h-full object-cover" alt="avatar" />
@@ -139,7 +197,26 @@ async function handleLogout() {
           <RouterLink to="/my-courses" class="text-sm text-gray-600" @click="mobileOpen = false">Course Saya</RouterLink>
           <RouterLink to="/purchases" class="text-sm text-gray-600" @click="mobileOpen = false">Riwayat Pembelian</RouterLink>
           <RouterLink to="/profile" class="text-sm text-gray-600" @click="mobileOpen = false">Profil</RouterLink>
-          <button class="text-sm text-red-500 text-left" @click="handleLogout">Logout</button>
+
+          <!-- Menu admin di layar sempit — dropdown diganti daftar bersekat -->
+          <div v-if="isAdmin" class="border-t border-gray-100 pt-3 mt-1 flex flex-col gap-3">
+            <p class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              <Shield class="w-3.5 h-3.5" /> Admin
+            </p>
+            <RouterLink
+              v-for="item in adminMenuItems"
+              :key="item.to"
+              :to="item.to"
+              class="flex items-center gap-2.5 text-sm"
+              :class="isAdminMenuActive(item, route.path) ? 'text-indigo-600 font-medium' : 'text-gray-600'"
+              @click="mobileOpen = false"
+            >
+              <component :is="item.icon" class="w-4 h-4 shrink-0 text-gray-400" />
+              {{ item.label }}
+            </RouterLink>
+          </div>
+
+          <button class="text-sm text-red-500 text-left border-t border-gray-100 pt-3 mt-1" @click="handleLogout">Logout</button>
         </template>
         <template v-else>
           <RouterLink to="/auth/login" class="text-sm font-medium text-gray-700" @click="mobileOpen = false">Login</RouterLink>

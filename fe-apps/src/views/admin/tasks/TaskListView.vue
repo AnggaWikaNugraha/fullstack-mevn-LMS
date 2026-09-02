@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { useTaskReview } from '@/composables/admin/useTaskReview';
+import {
+  useTaskReview,
+  taskFilterOptions,
+  taskStatusBadge,
+  taskStatusLabel,
+  formatTaskDate,
+  userInitials,
+} from '@/composables/admin/useTaskReview';
 
 const {
   submissions,
@@ -8,41 +15,8 @@ const {
   statusFilter,
   page,
   reviewing,
-  rejectingId,
-  feedbackText,
-  startReject,
-  cancelReject,
-  submitReject,
   approve,
 } = useTaskReview();
-
-const filterOptions: { label: string; value: string }[] = [
-  { label: 'Semua', value: '' },
-  { label: 'Menunggu', value: 'submitted' },
-  { label: 'Disetujui', value: 'approved' },
-  { label: 'Ditolak', value: 'rejected' },
-];
-
-const statusBadge: Record<string, string> = {
-  submitted: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  approved:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  rejected:  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-};
-const statusLabel: Record<string, string> = {
-  submitted: 'Menunggu',
-  approved:  'Disetujui',
-  rejected:  'Ditolak',
-};
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('id-ID', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
-}
-
-function initials(name: string) {
-  return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase();
-}
 
 function setFilter(val: string) {
   statusFilter.value = val;
@@ -57,7 +31,7 @@ function setFilter(val: string) {
     <!-- Filter pills -->
     <div class="flex gap-2 flex-wrap">
       <button
-        v-for="opt in filterOptions"
+        v-for="opt in taskFilterOptions"
         :key="opt.value"
         class="px-4 py-1.5 rounded-full text-sm font-medium border transition"
         :class="statusFilter === opt.value
@@ -87,126 +61,97 @@ function setFilter(val: string) {
             <th class="px-4 py-3 text-left font-medium">Status</th>
             <th class="px-4 py-3 text-left font-medium">Link Tugas</th>
             <th class="px-4 py-3 text-left font-medium">Dikumpulkan</th>
-            <th class="px-4 py-3 text-left font-medium">Aksi</th>
+            <th class="px-4 py-3 text-right font-medium">Aksi</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-          <template v-for="sub in submissions" :key="sub._id">
-            <!-- Baris utama -->
-            <tr class="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
-              <!-- Peserta -->
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-3">
-                  <img
-                    v-if="sub.userId.avatar_url"
-                    :src="sub.userId.avatar_url"
-                    :alt="sub.userId.name"
-                    class="w-8 h-8 rounded-full object-cover shrink-0"
-                  />
-                  <div
-                    v-else
-                    class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0"
-                  >
-                    {{ initials(sub.userId.name) }}
-                  </div>
-                  <div>
-                    <p class="font-medium text-gray-900 dark:text-white">{{ sub.userId.name }}</p>
-                    <p class="text-xs text-gray-400">{{ sub.userId.email }}</p>
-                  </div>
-                </div>
-              </td>
-
-              <!-- Lesson / Kursus -->
-              <td class="px-4 py-3">
-                <p class="font-medium text-gray-800 dark:text-gray-100 line-clamp-1">
-                  {{ sub.lessonId?.title ?? '—' }}
-                </p>
-                <p class="text-xs text-gray-400 line-clamp-1">
-                  {{ sub.courseId?.title ?? '—' }}
-                </p>
-              </td>
-
-              <!-- Status -->
-              <td class="px-4 py-3">
-                <span
-                  class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold"
-                  :class="statusBadge[sub.status]"
+          <tr
+            v-for="sub in submissions"
+            :key="sub._id"
+            class="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition"
+          >
+            <!-- Peserta -->
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-3">
+                <img
+                  v-if="sub.userId.avatar_url"
+                  :src="sub.userId.avatar_url"
+                  :alt="sub.userId.name"
+                  class="w-8 h-8 rounded-full object-cover shrink-0"
+                />
+                <div
+                  v-else
+                  class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0"
                 >
-                  {{ statusLabel[sub.status] }}
-                </span>
-              </td>
+                  {{ userInitials(sub.userId.name) }}
+                </div>
+                <div>
+                  <p class="font-medium text-gray-900 dark:text-white">{{ sub.userId.name }}</p>
+                  <p class="text-xs text-gray-400">{{ sub.userId.email }}</p>
+                </div>
+              </div>
+            </td>
 
-              <!-- Link Tugas -->
-              <td class="px-4 py-3">
-                <a
-                  :href="sub.submission_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-indigo-600 dark:text-indigo-400 hover:underline text-xs truncate max-w-[180px] inline-block"
+            <!-- Lesson / Kursus -->
+            <td class="px-4 py-3">
+              <RouterLink
+                :to="`/admin/tasks/${sub._id}`"
+                class="font-medium text-gray-800 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 line-clamp-1"
+              >
+                {{ sub.lessonId?.title ?? '—' }}
+              </RouterLink>
+              <p class="text-xs text-gray-400 line-clamp-1">
+                {{ sub.courseId?.title ?? '—' }}
+              </p>
+            </td>
+
+            <!-- Status -->
+            <td class="px-4 py-3">
+              <span
+                class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold"
+                :class="taskStatusBadge[sub.status]"
+              >
+                {{ taskStatusLabel[sub.status] }}
+              </span>
+            </td>
+
+            <!-- Link Tugas -->
+            <td class="px-4 py-3">
+              <a
+                :href="sub.submission_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-indigo-600 dark:text-indigo-400 hover:underline text-xs truncate max-w-[180px] inline-block"
+              >
+                {{ sub.submission_url }}
+              </a>
+            </td>
+
+            <!-- Tanggal -->
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              {{ formatTaskDate(sub.submittedAt) }}
+            </td>
+
+            <!-- Aksi: review lengkap di halaman detail, approve cepat dari sini -->
+            <td class="px-4 py-3">
+              <div class="flex gap-2 justify-end">
+                <button
+                  v-if="sub.status === 'submitted'"
+                  class="px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-medium disabled:opacity-40 transition"
+                  :disabled="reviewing"
+                  @click="approve(sub._id)"
                 >
-                  {{ sub.submission_url }}
-                </a>
-              </td>
-
-              <!-- Tanggal -->
-              <td class="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {{ formatDate(sub.submittedAt) }}
-              </td>
-
-              <!-- Aksi -->
-              <td class="px-4 py-3">
-                <div v-if="sub.status === 'submitted'" class="flex gap-2">
-                  <button
-                    class="px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-medium disabled:opacity-40 transition"
-                    :disabled="reviewing"
-                    @click="approve(sub._id)"
-                  >
-                    Setujui
-                  </button>
-                  <button
-                    class="px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 text-xs font-medium disabled:opacity-40 transition"
-                    :disabled="reviewing"
-                    @click="startReject(sub._id)"
-                  >
-                    Tolak
-                  </button>
-                </div>
-                <span v-else class="text-xs text-gray-400">—</span>
-              </td>
-            </tr>
-
-            <!-- Form reject (expand inline) -->
-            <tr v-if="rejectingId === sub._id" class="bg-red-50 dark:bg-red-900/10">
-              <td colspan="6" class="px-4 py-4">
-                <div class="flex flex-col gap-3 max-w-xl">
-                  <p class="text-sm font-medium text-red-700 dark:text-red-300">
-                    Feedback penolakan untuk <span class="font-bold">{{ sub.userId.name }}</span>
-                  </p>
-                  <textarea
-                    v-model="feedbackText"
-                    rows="3"
-                    placeholder="Tuliskan alasan penolakan atau saran perbaikan..."
-                    class="w-full rounded-xl border border-red-300 dark:border-red-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-400 resize-none"
-                  />
-                  <div class="flex gap-2">
-                    <button
-                      class="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium disabled:opacity-40 transition"
-                      :disabled="reviewing"
-                      @click="submitReject(sub._id)"
-                    >
-                      Konfirmasi Tolak
-                    </button>
-                    <button
-                      class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                      @click="cancelReject()"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </template>
+                  Setujui
+                </button>
+                <RouterLink
+                  :to="`/admin/tasks/${sub._id}`"
+                  class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition whitespace-nowrap"
+                >
+                  {{ sub.status === 'submitted' ? 'Review' : 'Detail' }}
+                </RouterLink>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>

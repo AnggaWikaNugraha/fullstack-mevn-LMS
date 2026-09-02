@@ -88,6 +88,11 @@ const adminRoutes: RouteRecordRaw[] = [
         name: 'admin-tasks',
         component: () => import('@/views/admin/tasks/TaskListView.vue'),
       },
+      {
+        path: 'tasks/:id',
+        name: 'admin-task-detail',
+        component: () => import('@/views/admin/tasks/TaskDetailView.vue'),
+      },
       // 6.8 Revenue
       {
         path: 'revenue',

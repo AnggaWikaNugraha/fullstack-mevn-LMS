@@ -60,6 +60,15 @@ export interface AdminBootcampDetail extends Omit<AdminBootcampPackage, 'batch_c
   batches: AdminBootcampBatch[];
 }
 
+// Peserta bootcamp — satu baris BootcampEnrollment dengan relasi ter-populate
+export interface AdminBootcampParticipant {
+  _id: string;
+  userId: { _id: string; name: string; email: string; avatar_url: string | null } | null;
+  batchId: { _id: string; title: string } | null;
+  orderId: { _id: string; amount: number; status: 'pending' | 'paid' | 'failed' | 'expired'; paidAt: string | null } | null;
+  enrolledAt: string;
+}
+
 export type PackagePayload = {
   title: string;
   description: string;
@@ -98,6 +107,11 @@ export const adminListBootcamps = () =>
 
 export const adminGetBootcamp = (id: string) =>
   apiClient.get<ApiResponse<{ package: AdminBootcampDetail }>>(`/admin/bootcamps/${id}`);
+
+export const adminListBootcampParticipants = (id: string) =>
+  apiClient.get<ApiResponse<{ participants: AdminBootcampParticipant[]; total: number }>>(
+    `/admin/bootcamps/${id}/participants`,
+  );
 
 export const adminCreateBootcamp = (payload: PackagePayload) =>
   apiClient.post<ApiResponse<{ package: AdminBootcampPackage }>>('/admin/bootcamps', payload);

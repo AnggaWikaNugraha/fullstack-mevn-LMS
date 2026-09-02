@@ -1,35 +1,14 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import {
-  LayoutDashboard,
-  BookOpen,
-  Tag,
-  CircleHelp,
-  Users,
-  GraduationCap,
-  ShoppingCart,
-  ClipboardList,
-  BarChart2,
-} from '@lucide/vue';
 import AppNavbar from '@/components/ui/AppNavbar.vue';
+import { adminMenuItems, isAdminMenuActive, type AdminMenuItem } from '@/composables/admin/useAdminMenu';
 
 const route = useRoute();
 
-const menuItems = [
-  { to: '/admin',           label: 'Dashboard',  icon: LayoutDashboard, exact: true },
-  { to: '/admin/courses',   label: 'Courses',    icon: BookOpen },
-  { to: '/admin/topics',    label: 'Topics',     icon: Tag },
-  { to: '/admin/quiz',      label: 'Quiz',       icon: CircleHelp },
-  { to: '/admin/users',     label: 'Users',      icon: Users },
-  { to: '/admin/bootcamps', label: 'Bootcamps',  icon: GraduationCap },
-  { to: '/admin/orders',    label: 'Orders',     icon: ShoppingCart },
-  { to: '/admin/tasks',     label: 'Tasks',      icon: ClipboardList },
-  { to: '/admin/revenue',   label: 'Revenue',    icon: BarChart2 },
-];
+const menuItems = adminMenuItems;
 
-function isActive(item: typeof menuItems[0]) {
-  if (item.exact) return route.path === item.to;
-  return route.path.startsWith(item.to);
+function isActive(item: AdminMenuItem) {
+  return isAdminMenuActive(item, route.path);
 }
 </script>
 

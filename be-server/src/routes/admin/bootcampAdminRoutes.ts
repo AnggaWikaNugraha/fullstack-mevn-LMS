@@ -5,6 +5,7 @@ import {
   listMentors,
   listPackages,
   getPackageDetail,
+  listPackageParticipants,
   createPackage,
   updatePackage,
   deletePackage,
@@ -26,6 +27,7 @@ router.get('/mentors', listMentors);
 // Package CRUD
 router.get('/', listPackages);
 router.get('/:id', getPackageDetail);
+router.get('/:id/participants', listPackageParticipants);
 router.post('/', createPackage);
 router.patch('/:id', updatePackage);
 router.delete('/:id', deletePackage);

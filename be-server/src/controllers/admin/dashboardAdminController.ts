@@ -144,14 +144,29 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
     const rentangTahun = { $gte: awalTahun, $lt: awalTahunDepan };
 
     const [rawSeries, rawTopCourses, rawTopBootcamps, [summaryRow], statusCounts, rawYears] = await Promise.all([
-      // Pendapatan per bulan
-      Order.aggregate<{ _id: string; total: number; orders: number }>([
+      // Pendapatan per bulan — total tetap gabungan, tapi dipecah per jenis produk
+      // supaya grafik di FE bisa menampilkan porsi course dan bootcamp terpisah.
+      // Order tanpa field `type` (dibuat sebelum bootcamp ada) jatuh ke sisi course,
+      // konsisten dengan penyaring { $ne: 'bootcamp' } di peringkat course.
+      Order.aggregate<{
+        _id: string;
+        total: number;
+        orders: number;
+        course_total: number;
+        bootcamp_total: number;
+        course_orders: number;
+        bootcamp_orders: number;
+      }>([
         { $match: { status: 'paid', paidAt: rentangTahun } },
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m', date: '$paidAt', timezone: TIMEZONE } },
             total: { $sum: '$amount' },
             orders: { $sum: 1 },
+            course_total: { $sum: { $cond: [{ $eq: ['$type', 'bootcamp'] }, 0, '$amount'] } },
+            bootcamp_total: { $sum: { $cond: [{ $eq: ['$type', 'bootcamp'] }, '$amount', 0] } },
+            course_orders: { $sum: { $cond: [{ $eq: ['$type', 'bootcamp'] }, 0, 1] } },
+            bootcamp_orders: { $sum: { $cond: [{ $eq: ['$type', 'bootcamp'] }, 1, 0] } },
           },
         },
         { $sort: { _id: 1 } },
@@ -202,10 +217,18 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
         },
       ]),
 
-      // Total dan jumlah order terbayar sepanjang tahun
-      Order.aggregate<{ total: number; orders: number }>([
+      // Total dan jumlah order terbayar sepanjang tahun, dipecah per jenis produk
+      Order.aggregate<{ total: number; orders: number; course_total: number; bootcamp_total: number }>([
         { $match: { status: 'paid', paidAt: rentangTahun } },
-        { $group: { _id: null, total: { $sum: '$amount' }, orders: { $sum: 1 } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$amount' },
+            orders: { $sum: 1 },
+            course_total: { $sum: { $cond: [{ $eq: ['$type', 'bootcamp'] }, 0, '$amount'] } },
+            bootcamp_total: { $sum: { $cond: [{ $eq: ['$type', 'bootcamp'] }, '$amount', 0] } },
+          },
+        },
       ]),
 
       // Sebaran status untuk menghitung tingkat konversi.
@@ -229,7 +252,15 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
     const series = Array.from({ length: 12 }, (_, i) => {
       const period = `${year}-${String(i + 1).padStart(2, '0')}`;
       const row = byPeriod.get(period);
-      return { period, total: row?.total ?? 0, orders: row?.orders ?? 0 };
+      return {
+        period,
+        total: row?.total ?? 0,
+        orders: row?.orders ?? 0,
+        course_total: row?.course_total ?? 0,
+        bootcamp_total: row?.bootcamp_total ?? 0,
+        course_orders: row?.course_orders ?? 0,
+        bootcamp_orders: row?.bootcamp_orders ?? 0,
+      };
     });
 
     const total = summaryRow?.total ?? 0;
@@ -252,6 +283,8 @@ export const getRevenueReport = async (req: AuthRequest, res: Response, next: Ne
         topBootcamps: rawTopBootcamps,
         summary: {
           total,
+          courseTotal: summaryRow?.course_total ?? 0,
+          bootcampTotal: summaryRow?.bootcamp_total ?? 0,
           paidOrders,
           avgOrderValue: paidOrders ? Math.round(total / paidOrders) : 0,
           conversionRate: createdOrders ? (ordersByStatus.paid ?? 0) / createdOrders : 0,

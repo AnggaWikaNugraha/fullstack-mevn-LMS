@@ -65,6 +65,13 @@ const formatDate = (iso: string) =>
         >
           Lihat Link Tugas →
         </a>
+        <div
+          v-if="existingSubmission?.feedback"
+          class="mt-4 text-left rounded-xl bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-700 px-4 py-3"
+        >
+          <p class="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Feedback Admin:</p>
+          <p class="text-sm text-green-800 dark:text-green-200">{{ existingSubmission.feedback }}</p>
+        </div>
       </div>
 
       <!-- Ditolak -->

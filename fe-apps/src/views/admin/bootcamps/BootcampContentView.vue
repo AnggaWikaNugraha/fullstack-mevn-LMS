@@ -3,6 +3,12 @@ import { ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { ChevronDown, Pencil, Trash2, Plus, X, CalendarDays, Users, Wifi, MapPin, Blend } from '@lucide/vue';
 import { useBootcampEditor } from '@/composables/admin/useBootcampEditor';
+import {
+  useBootcampParticipants,
+  orderStatusBadge,
+  formatParticipantDate,
+  participantInitials,
+} from '@/composables/admin/useBootcampParticipants';
 
 const route = useRoute();
 const packageId = route.params.id as string;
@@ -15,6 +21,15 @@ const {
   newSession, editingSession,
   addSession, addingSession, saveSession, savingSession, confirmDeleteSession,
 } = useBootcampEditor(packageId);
+
+const {
+  filtered: participants,
+  total: participantTotal,
+  isLoading: loadingParticipants,
+  countByBatch,
+  batchFilter,
+  batchesWithParticipants,
+} = useBootcampParticipants(packageId);
 
 // Satu batch saja yang bisa buka form tambah sesi sekaligus
 const showAddSession = ref<string | null>(null);
@@ -189,6 +204,15 @@ function toInputDate(iso: string) {
                 <span class="flex items-center gap-1">
                   <Users class="w-3.5 h-3.5" />
                   {{ batch.quota_used_percentage }}% terisi · {{ batch.sessions.length }} sesi
+                </span>
+                <!-- Jumlah peserta nyata dari BootcampEnrollment, bukan persentase kuota manual -->
+                <span
+                  class="px-2 py-0.5 rounded-full font-medium"
+                  :class="countByBatch[batch._id]
+                    ? 'bg-indigo-50 text-indigo-600'
+                    : 'bg-gray-100 text-gray-400'"
+                >
+                  {{ countByBatch[batch._id] ?? 0 }} peserta
                 </span>
               </div>
 
@@ -406,6 +430,104 @@ function toInputDate(iso: string) {
       >
         <Plus class="w-4 h-4" /> Tambah Batch
       </button>
+
+      <!-- ══ Peserta Bootcamp ══ -->
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden !mt-8">
+        <div class="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+          <Users class="w-4 h-4 text-indigo-500" />
+          <h3 class="font-semibold text-gray-800 text-sm">Peserta Bootcamp</h3>
+          <span class="ml-auto text-xs text-gray-400">{{ participantTotal }} peserta terdaftar</span>
+        </div>
+
+        <!-- Pill filter per batch — hanya muncul bila peserta tersebar di >1 batch -->
+        <div
+          v-if="batchesWithParticipants.length > 1"
+          class="flex flex-wrap gap-2 px-5 py-3 border-b border-gray-50 bg-gray-50/50"
+        >
+          <button
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="batchFilter === null
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'"
+            @click="batchFilter = null"
+          >
+            Semua ({{ participantTotal }})
+          </button>
+          <button
+            v-for="b in batchesWithParticipants"
+            :key="b._id"
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="batchFilter === b._id
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'"
+            @click="batchFilter = b._id"
+          >
+            {{ b.title }} ({{ b.count }})
+          </button>
+        </div>
+
+        <div v-if="loadingParticipants" class="px-5 py-8 text-center text-sm text-gray-400">
+          Memuat peserta...
+        </div>
+        <div v-else-if="!participants.length" class="px-5 py-8 text-center text-sm text-gray-400">
+          Belum ada peserta yang terdaftar di bootcamp ini.
+        </div>
+
+        <div v-else class="divide-y divide-gray-50">
+          <div
+            v-for="p in participants"
+            :key="p._id"
+            class="flex items-center gap-3 px-5 py-3.5"
+          >
+            <!-- Avatar -->
+            <img
+              v-if="p.userId?.avatar_url"
+              :src="p.userId.avatar_url"
+              :alt="p.userId.name"
+              class="w-9 h-9 rounded-full object-cover shrink-0"
+            />
+            <div
+              v-else
+              class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0"
+            >
+              {{ p.userId ? participantInitials(p.userId.name) : '?' }}
+            </div>
+
+            <!-- Identitas + batch -->
+            <div class="flex-1 min-w-0">
+              <RouterLink
+                v-if="p.userId"
+                :to="`/admin/users/${p.userId._id}`"
+                class="text-sm font-medium text-gray-800 hover:text-indigo-600 transition-colors truncate block"
+              >
+                {{ p.userId.name }}
+              </RouterLink>
+              <p v-else class="text-sm font-medium text-gray-400 italic">User dihapus</p>
+              <p class="text-xs text-gray-400 truncate">
+                {{ p.userId?.email }}
+                <template v-if="p.batchId"> · {{ p.batchId.title }}</template>
+              </p>
+            </div>
+
+            <!-- Status pembayaran + nominal -->
+            <div class="hidden sm:flex flex-col items-end gap-1 shrink-0">
+              <span
+                v-if="p.orderId"
+                class="text-xs px-2 py-0.5 rounded-full font-medium"
+                :class="orderStatusBadge[p.orderId.status]"
+              >
+                {{ p.orderId.status }}
+              </span>
+              <span v-if="p.orderId" class="text-xs text-gray-500">{{ formatPrice(p.orderId.amount) }}</span>
+            </div>
+
+            <!-- Tanggal bergabung -->
+            <span class="text-xs text-gray-400 shrink-0 w-20 text-right">
+              {{ formatParticipantDate(p.enrolledAt) }}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

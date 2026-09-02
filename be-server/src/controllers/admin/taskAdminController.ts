@@ -43,6 +43,49 @@ export const listSubmissions = async (req: AuthRequest, res: Response, next: Nex
   }
 };
 
+// ─── Detail satu submission ──────────────────────────────────────────────────
+
+export const getSubmissionDetail = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Lesson di-populate berikut chapter dan module-nya agar admin melihat
+    // konteks lengkap: soal tugas + posisi lesson di dalam kurikulum kursus
+    const submission = await TaskSubmission.findById(id)
+      .populate('userId', 'name email avatar_url')
+      .populate({
+        path: 'lessonId',
+        select: 'title type description order chapterId',
+        populate: {
+          path: 'chapterId',
+          select: 'title order moduleId',
+          populate: { path: 'moduleId', select: 'title order' },
+        },
+      })
+      .populate('courseId', 'title cover_url level topic_name');
+
+    if (!submission) {
+      res.status(404).json({ success: false, message: 'Submission tidak ditemukan.' });
+      return;
+    }
+
+    // Riwayat tugas lain milik peserta yang sama di kursus ini — bahan pertimbangan review
+    const history = await TaskSubmission.find({
+      userId: submission.userId,
+      courseId: submission.courseId,
+      _id: { $ne: submission._id },
+    })
+      .populate('lessonId', 'title')
+      .select('lessonId status submittedAt')
+      .sort({ submittedAt: -1 })
+      .limit(10);
+
+    res.status(200).json({ success: true, data: { submission, history } });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ─── Review submission (approve / reject) ────────────────────────────────────
 
 export const reviewSubmission = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {

@@ -1,21 +1,14 @@
 <script setup lang="ts">
 import { useRevenueReport } from '@/composables/admin/useRevenueReport';
 import { formatRupiah } from '@/utils/format';
-import { BarChart2 } from '@lucide/vue';
+import RevenueBarChart from '@/components/admin/RevenueBarChart.vue';
 
 const {
-  bars, summary, topCourses, topBootcamps,
+  courseBars, bootcampBars, summary, topCourses, topBootcamps,
+  hasBootcampRevenue, hasCourseRevenue,
   year, availableYears, selectYear,
-  hasData, isLoading, isFetching,
+  isLoading, isFetching,
 } = useRevenueReport();
-
-// Angka besar dipendekkan agar sumbu grafik tidak melebar
-function ringkasRupiah(value: number): string {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)} M`;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} jt`;
-  if (value >= 1_000) return `${Math.round(value / 1_000)} rb`;
-  return String(value);
-}
 
 const persen = (v: number) => `${(v * 100).toFixed(1)}%`;
 </script>
@@ -48,6 +41,18 @@ const persen = (v: number) => `${(v * 100).toFixed(1)}%`;
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">Total {{ year }}</p>
           <p class="text-xl font-bold text-gray-900">{{ formatRupiah(summary?.total ?? 0) }}</p>
+          <!-- Pecahan course/bootcamp agar angka gabungan di atas bisa ditelusuri -->
+          <p class="text-xs text-gray-400 mt-1.5 leading-relaxed">
+            <span class="inline-flex items-center gap-1">
+              <span class="w-2 h-2 rounded-sm bg-indigo-500" />
+              Course {{ formatRupiah(summary?.courseTotal ?? 0) }}
+            </span>
+            <br />
+            <span class="inline-flex items-center gap-1">
+              <span class="w-2 h-2 rounded-sm bg-amber-400" />
+              Bootcamp {{ formatRupiah(summary?.bootcampTotal ?? 0) }}
+            </span>
+          </p>
         </div>
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">Order Terbayar</p>
@@ -64,34 +69,28 @@ const persen = (v: number) => `${(v * 100).toFixed(1)}%`;
         </div>
       </div>
 
-      <!-- Grafik batang bulanan -->
-      <div
-        class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 transition-opacity"
-        :class="isFetching && 'opacity-60'"
-      >
-        <h2 class="text-sm font-bold text-gray-800 mb-5">Pendapatan per Bulan</h2>
-
-        <div v-if="!hasData" class="py-10 text-center">
-          <BarChart2 class="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p class="text-sm text-gray-500">Belum ada transaksi di tahun {{ year }}.</p>
-        </div>
-
-        <div v-else class="flex items-end gap-1.5 sm:gap-3 h-56">
-          <div v-for="bar in bars" :key="bar.period" class="flex-1 flex flex-col items-center gap-2 h-full group">
-            <!-- Kolom batang, tumbuh dari bawah -->
-            <div class="flex-1 w-full flex items-end">
-              <div
-                class="w-full rounded-t-lg bg-indigo-500 group-hover:bg-indigo-600 transition-[height,background-color] duration-300 min-h-0.5"
-                :style="{ height: `${bar.heightPercent}%` }"
-              />
-            </div>
-            <!-- Nilai muncul saat kursor di atas batang -->
-            <span class="text-[10px] text-gray-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              {{ ringkasRupiah(bar.total) }}
-            </span>
-            <span class="text-[10px] sm:text-xs text-gray-400">{{ bar.label }}</span>
-          </div>
-        </div>
+      <!-- Dua grafik terpisah: course dan bootcamp tidak ditumpuk supaya
+           masing-masing terbaca sendiri. Skalanya sengaja disamakan agar
+           tinggi batang di kedua grafik tetap bisa dibandingkan. -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+        <RevenueBarChart
+          title="Pendapatan Course per Bulan"
+          color="indigo"
+          :bars="courseBars"
+          :total="summary?.courseTotal ?? 0"
+          :has-data="hasCourseRevenue"
+          :dimmed="isFetching"
+          :empty-label="`Belum ada penjualan course di tahun ${year}.`"
+        />
+        <RevenueBarChart
+          title="Pendapatan Bootcamp per Bulan"
+          color="amber"
+          :bars="bootcampBars"
+          :total="summary?.bootcampTotal ?? 0"
+          :has-data="hasBootcampRevenue"
+          :dimmed="isFetching"
+          :empty-label="`Belum ada penjualan bootcamp di tahun ${year}.`"
+        />
       </div>
 
       <!-- Course terlaris -->

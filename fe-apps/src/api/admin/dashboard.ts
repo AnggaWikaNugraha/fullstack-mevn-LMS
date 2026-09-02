@@ -22,11 +22,16 @@ export interface AdminDashboardStats {
 }
 
 // Satu titik pada grafik bulanan. Backend selalu mengirim 12 elemen,
-// bulan tanpa transaksi bernilai nol.
+// bulan tanpa transaksi bernilai nol. `total` adalah gabungan course + bootcamp;
+// pecahannya dipakai untuk batang bertumpuk di grafik.
 export interface RevenuePoint {
   period: string; // format YYYY-MM
   total: number;
   orders: number;
+  course_total: number;
+  bootcamp_total: number;
+  course_orders: number;
+  bootcamp_orders: number;
 }
 
 export interface RevenueTopCourse {
@@ -54,6 +59,8 @@ export interface AdminRevenueReport {
   topBootcamps: RevenueTopBootcamp[];
   summary: {
     total: number;
+    courseTotal: number;
+    bootcampTotal: number;
     paidOrders: number;
     avgOrderValue: number;
     conversionRate: number; // pecahan 0..1, bukan persen

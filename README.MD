@@ -38,10 +38,10 @@ src/
 │   └── admin/
 │       ├── courses.ts         # Admin CRUD course + module + chapter + lesson (TypeScript interfaces + API calls)
 │       ├── quiz.ts            # Admin quiz CRUD + AdminQuizQuestion interface
-│       ├── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
+│       ├── bootcamps.ts       # Admin bootcamp CRUD; MentorUser / AdminMentor / AdminMentorPayload / AdminBootcampParticipant + adminListMentors() / adminListBootcampParticipants()
 │       ├── topics.ts          # Admin topic CRUD; AdminTopic interface + adminListTopics/adminCreateTopic/adminUpdateTopic/adminDeleteTopic
 │       ├── users.ts           # Admin user; AdminUser/AdminUserDetail/AdminUserEnrollment/AdminUserOrder interfaces + adminListUsers/adminGetUser/adminUpdateUserRole
-│       ├── tasks.ts           # Admin task review; AdminTaskSubmission interface + adminListSubmissions/adminReviewSubmission
+│       ├── tasks.ts           # Admin task review; AdminTaskSubmission/AdminTaskSubmissionDetail/AdminTaskHistoryItem interfaces + adminListSubmissions/adminGetSubmission/adminReviewSubmission
 │       └── dashboard.ts       # Admin dashboard; AdminDashboardStats / AdminRevenueReport / RevenuePoint / RevenueTopCourse interfaces + adminGetDashboardStats/adminGetRevenueReport
 ├── composables/
 │   ├── useDeviceId.ts         # Generate and read UUID deviceId
@@ -77,22 +77,25 @@ src/
 │       ├── useCourseForm.ts     # create/edit course form mutations
 │       ├── useCourseContent.ts  # course detail query + invalidate helper
 │       ├── useCourseEditor.ts   # expand state + all module/chapter/lesson CRUD mutations + expandedQuizzes/toggleQuiz
+│       ├── useAdminMenu.ts     # adminMenuItems + isAdminMenuActive — single source for the admin menu (AdminLayout sidebar & navbar dropdown)
 │       ├── useQuizEditor.ts     # quiz question CRUD mutations per lesson (add / edit / delete + showAddForm state)
 │       ├── useBootcampList.ts   # bootcamp list query + confirmDelete
 │       ├── useBootcampForm.ts   # create/edit package + mentor picker (toggleMentor / isMentorSelected / updateOccupation)
 │       ├── useBootcampContent.ts # package detail query + invalidate helper
+│       ├── useBootcampParticipants.ts # package participant query + per-batch counts + batch filter + badge/date helpers
 │       ├── useBootcampEditor.ts  # expandedBatches + toggleBatch + expandAll/collapseAll + CRUD batch + session mutations
 │       ├── useTopicList.ts      # topic list query + add/edit/delete mutations + showAddForm/editingTopic state
 │       ├── useUserList.ts       # user list query (search + pagination) + changeRole mutation
 │       ├── useUserDetail.ts     # user detail query + changeRole mutation + roleBadge/roleOptions/formatDate/formatRupiah/statusBadge helpers
-│       ├── useTaskReview.ts     # task submission list query (filter by status + pagination) + approve/startReject/cancelReject/submitReject mutations
+│       ├── useTaskReview.ts     # task submission list query (filter by status + pagination) + quick approve mutation + shared display helpers (taskStatusBadge/taskStatusLabel/taskFilterOptions/formatTaskDate/formatTaskDateTime/userInitials)
+│       ├── useTaskReviewDetail.ts # single submission detail query (brief + answer + history) + approve/reject mutations with feedback
 │       ├── useDashboardStats.ts  # dashboard stats query (counts + revenue + recent orders)
-│       └── useRevenueReport.ts   # revenue query keyed by year + zero-filled 12-month bars + year picker state
+│       └── useRevenueReport.ts   # revenue query keyed by year + two zero-filled 12-month bar sets (courseBars & bootcampBars, shared scale) + year picker state
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Split-screen (branding left, form right)
 │   ├── ProfileLayout.vue      # Navbar + sidebar (My Courses, Profile, Purchase History) + RouterView
-│   └── AdminLayout.vue        # Navbar + sidebar admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue) + RouterView
+│   └── AdminLayout.vue        # Navbar + admin sidebar (menu read from useAdminMenu) + RouterView
 ├── router/
 │   ├── index.ts               # Vue Router + navigation guard (requiresAuth + requiresAdmin)
 │   └── routes/
@@ -151,17 +154,18 @@ src/
 │       ├── bootcamps/
 │       │   ├── BootcampListView.vue  # Package table + status badge + Content/Edit/Delete buttons
 │       │   ├── BootcampFormView.vue  # Create/edit package form; mentor picker (toggle users with role 'mentor' + occupation input)
-│       │   └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge); session rows (number badge + date+time chip); add-session form as an expanding card
+│       │   └── BootcampContentView.vue # Card-based editor: mentor strip; batch cards (click-to-expand, quota bar, type badge, participant count badge); session rows (number badge + date+time chip); add-session form as an expanding card; Bootcamp Participants panel (batch filter pills + participant list)
 │       ├── tasks/
-│       │   └── TaskListView.vue      # Submission table + filter pills (All/Pending/Approved/Rejected) + Approve/Reject buttons + inline reject form + pagination
+│       │   ├── TaskListView.vue      # Submission table + filter pills (All/Pending/Approved/Rejected) + quick Approve button + Review/Detail link + pagination
+│       │   └── TaskDetailView.vue    # Review page: full task brief, student answer (URL + note), decision panel (feedback + Approve/Reject), student/course/history sidebar
 │       ├── orders/
 │       │   └── OrderListView.vue     # Placeholder
 │       └── revenue/
-│           └── RevenueView.vue       # 4 stat cards + CSS bar chart (12 months) + top courses table + year picker
+│           └── RevenueView.vue       # 4 stat cards (total card shows the course/bootcamp split) + two separate bar charts (course & bootcamp) + top courses & bootcamps tables + year picker
 └── components/
     ├── ui/
     │   ├── GlobalErrorModal.vue
-    │   ├── AppNavbar.vue           # User dropdown menu (My Courses, Profile, Purchase History, Logout)
+    │   ├── AppNavbar.vue           # User dropdown menu (My Courses, Profile, Purchase History, Logout) + admin-only Admin dropdown
     │   ├── AppFooter.vue
     │   └── GoogleSignInButton.vue
     ├── sections/
@@ -200,10 +204,10 @@ src/
 │   └── admin/
 │       ├── courseAdminController.ts    # Admin CRUD: course + module + chapter + lesson + cascade delete; topic_name resolved automatically from the Topic collection
 │       ├── quizAdminController.ts      # Admin quiz CRUD: get/create/update/delete questions (with correct_index)
-│       ├── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete
+│       ├── bootcampAdminController.ts  # Admin CRUD: package + batch + session + cascade delete; listPackageParticipants (participants across batches, from BootcampEnrollment)
 │       ├── topicAdminController.ts     # Admin CRUD topic: list/create/update/delete (guarded while a course still uses the slug)
 │       ├── userAdminController.ts      # Admin user: listUsers (pagination+search) + getUserDetail (enrollments+orders+total_spent) + updateUserRole
-│       ├── taskAdminController.ts     # Admin task review: listSubmissions (filter by status + populate) + reviewSubmission (approve → upsert Progress; reject → delete Progress + set feedback)
+│       ├── taskAdminController.ts     # Admin task review: listSubmissions (filter by status + populate) + getSubmissionDetail (lesson+chapter+module+course+history) + reviewSubmission (approve → upsert Progress; reject → delete Progress + set feedback)
 │       └── dashboardAdminController.ts # Admin dashboard: getDashboardStats (counts + revenue + 5 recent orders) + getRevenueReport (12-month series + top courses + summary, all WIB-based)
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
@@ -1751,7 +1755,9 @@ User navigates to /admin/*
 ```
 
 **FE Tasks:**
-- [x] `src/layouts/AdminLayout.vue` — AppNavbar + sidebar card admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue); mobile pill nav
+- [x] `src/layouts/AdminLayout.vue` — AppNavbar + admin sidebar card (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue); mobile pill nav
+- [x] `src/composables/admin/useAdminMenu.ts` — `adminMenuItems` + `isAdminMenuActive()` as the single source for the admin menu list, shared by the `AdminLayout` sidebar and the navbar dropdown so the two can never drift apart
+- [x] `src/components/ui/AppNavbar.vue` — an **Admin** dropdown (shield icon) shown only when `auth.user?.role === 'admin'`, listing every `/admin/*` link with an active-item marker; the trigger itself highlights while on an admin page. Only one dropdown may be open — opening Admin closes the user menu and vice versa. On narrow screens the dropdown becomes a separated "Admin" section inside the mobile menu
 - [x] `router/routes/admin.ts` — all `/admin/*` routes with the `requiresAdmin` guard; placeholder views for every sub-page
 - [x] Update the router guard in `router/index.ts` — check `auth.user?.role === 'admin'`
 - [x] `src/types/router.d.ts` — extend `RouteMeta` with `requiresAdmin`
@@ -1945,6 +1951,7 @@ Admin navigates to /admin/bootcamps
 - [x] `GET /api/admin/bootcamps` — list all packages + batch_count; populate `mentors.userId`
 - [x] `GET /api/admin/bootcamps/:id` — detail package + batches + sessions; populate `mentors.userId` (name, avatar_url)
 - [x] `GET /api/admin/bootcamps/mentors` — list all users with `role: 'mentor'` (used by the FE mentor picker) — **must be declared before `/:id` in the router**
+- [x] `GET /api/admin/bootcamps/:id/participants` — every participant of the package across all batches; reads `BootcampEnrollment` via the denormalized `packageId`; populates `userId` (name, email, avatar_url) + `batchId` (title) + `orderId` (amount, status, paidAt); sorted by `enrolledAt` descending
 - [x] `POST /api/admin/bootcamps` — create package
 - [x] `PATCH /api/admin/bootcamps/:id` — edit package; populate `mentors.userId` in the response
 - [x] `DELETE /api/admin/bootcamps/:id` — delete package + cascade: BootcampBatch, BootcampSession
@@ -1956,18 +1963,19 @@ Admin navigates to /admin/bootcamps
 - [x] `DELETE /api/admin/bootcamps/sessions/:id` — delete session
 - [x] Seed script `npm run seed:mentors` — upsert 5 mentor users (idempotent, using `$setOnInsert`)
 - [x] Update `bootcampSeeder.ts` — query mentor users by email, fail fast when missing; use `{ userId, occupation }` instead of `{ name, image_url }`
-- [ ] `GET /api/admin/batches/:id/enrollments` — list students enrolled in this batch (Phase 7)
+- [x] ~~`GET /api/admin/batches/:id/enrollments`~~ — superseded by `GET /api/admin/bootcamps/:id/participants` above: one query for every batch, with the per-batch split done on the FE
 
 **FE Tasks:**
 - [x] `src/api/admin/bootcamps.ts` — `MentorUser` (populated), `AdminMentor` (userId: MentorUser), `AdminMentorPayload` (userId: string), `PackagePayload.mentors: AdminMentorPayload[]`; add `adminListMentors()`
 - [x] `src/composables/admin/useBootcampList.ts` — list query + confirmDelete
 - [x] `src/composables/admin/useBootcampForm.ts` — create/edit mutations + pre-fill (converts `m.userId._id` → string) + `availableMentors` query; `toggleMentor`, `isMentorSelected`, `updateOccupation`, `getMentorPayload` functions
 - [x] `src/composables/admin/useBootcampContent.ts` — package detail query + invalidate helper
+- [x] `src/composables/admin/useBootcampParticipants.ts` — `['admin-bootcamp-participants', packageId]` query; derived `countByBatch` (participant badge on each batch card), `batchesWithParticipants` (filter pills), `batchFilter` + `filtered`; `orderStatusBadge` / `formatParticipantDate` / `participantInitials` helpers
 - [x] `src/composables/admin/useBootcampEditor.ts` — expand state (expandedBatches + toggleBatch + expandAll + collapseAll) + CRUD batch + session mutations
 - [x] `src/views/admin/bootcamps/BootcampListView.vue` — package table + status badge + Konten/Edit/Hapus buttons
 - [x] `src/views/admin/bootcamps/BootcampFormView.vue` — create/edit form; mentor picker: list of mentor users with a select toggle (UserCheck/UserX) + an occupation input per selected mentor
-- [x] `src/views/admin/bootcamps/BootcampContentView.vue` — card-based editor: mentor strip on top; batch cards (click the header to expand, chevron indicator, type badge, quota bar); session rows with number badge + name + date+time chip; add-session form as an expanding card (not an inline grid)
-- [ ] `src/views/admin/bootcamps/BootcampEnrollmentsView.vue` — per-batch student list + revoke button (Phase 7)
+- [x] `src/views/admin/bootcamps/BootcampContentView.vue` — card-based editor: mentor strip on top; batch cards (click the header to expand, chevron indicator, type badge, quota bar, **real participant count badge**); session rows with number badge + name + date+time chip; add-session form as an expanding card (not an inline grid); **Bootcamp Participants** panel below the batch list — total enrolled, per-batch filter pills (shown when participants span more than one batch), participant rows (avatar, name linked to `/admin/users/:id`, email, batch, order status badge + amount, join date)
+- [ ] Revoke (unenroll) button on the Bootcamp Participants panel (Phase 7)
 
 ---
 
@@ -2016,19 +2024,28 @@ Admin navigates to /admin/tasks
     GET /api/admin/tasks  (list all submissions, filter by status: pending/approved/rejected)
           |
           ▼
-    Admin clicks a submission → view URL + note
+    Admin clicks "Review" on a row → /admin/tasks/:submissionId
           |
-          ├─→ Admin clicks "Approve"
+          ▼
+    GET /api/admin/tasks/:submissionId
+    → task brief (lesson.description) + curriculum position (Course › Module › Chapter)
+    → student answer (submission_url + note + submittedAt)
+    → the student's other submissions in the same course
+          |
+          ├─→ Admin clicks "Setujui Tugas"  (also available as a quick action in the table)
           |         ▼
-          |   PATCH /api/admin/tasks/:submissionId  { status: 'approved' }
+          |   PATCH /api/admin/tasks/:submissionId  { status: 'approved', feedback? }
           |   → upsert Progress record → lesson is_done ✓, lesson berikutnya terbuka
           |
-          └─→ Admin clicks "Reject"
+          └─→ Admin writes feedback → "Tolak Tugas" → confirm
                     ▼
-              PATCH /api/admin/tasks/:submissionId  { status: 'rejected', feedback? }
+              PATCH /api/admin/tasks/:submissionId  { status: 'rejected', feedback }
               → delete the Progress record (if any) → the lesson becomes incomplete again
               → FE student: TaskPlayer shows the Ditolak badge + admin feedback; a resubmission is required
 ```
+
+> Rejection is only possible from the detail page — the admin needs to read the brief alongside the
+> answer, and feedback is mandatory. The table only offers the quick **Approve** action.
 
 **TaskSubmission Model Changes:**
 ```
@@ -2040,15 +2057,20 @@ feedback  → string | null  (optional admin comment on reject)
 - [x] Update `TaskSubmission` model — add `'approved'` and `'rejected'` to the `status` enum, add `feedback: string | null`
 - [x] Update `POST /api/tasks/:lessonId/submit` — default status `'submitted'`; Progress is **not** created automatically — the admin creates it on approve
 - [x] `GET /api/admin/tasks` — list all submissions, filter `?status=`, pagination; populate `userId` (name, email, avatar_url) + `lessonId` (title, type) + `courseId` (title)
-- [x] `PATCH /api/admin/tasks/:submissionId` — `approved` → upsert Progress; `rejected` → delete Progress + set feedback
+- [x] `GET /api/admin/tasks/:submissionId` — single submission detail; populate `lessonId` (+ `description` as the task brief, `chapterId` → `moduleId`) + `courseId` (title, cover_url, level, topic_name) + `userId`; also returns `history` (up to 10 other submissions by the same student in that course)
+- [x] `PATCH /api/admin/tasks/:submissionId` — `approved` → upsert Progress; `rejected` → delete Progress; feedback is stored on both decisions
 - [x] `taskAdminRoutes.ts` — every route guarded by `protect + adminOnly`; register in `routes/index.ts`
 
 **FE Tasks:**
 - [x] Update `src/types/quiz.ts` — `TaskSubmission.status` is now `'submitted' | 'approved' | 'rejected'`; add field `feedback: string | null`
 - [x] Update `TaskPlayer.vue` — render UI per status: ✅ Approved (green), ❌ Rejected (red + admin feedback box), 📎 Awaiting Review (yellow)
-- [x] `src/api/admin/tasks.ts` — `AdminTaskSubmission` interface + `adminListSubmissions` / `adminReviewSubmission`
-- [x] `src/composables/admin/useTaskReview.ts` — list query (statusFilter + page) + `approve` / `startReject` / `cancelReject` / `submitReject` mutations + `rejectingId` / `feedbackText` state
-- [x] `src/views/admin/tasks/TaskListView.vue` — submission table + filter pills (All/Pending/Approved/Rejected) + Approve/Reject buttons + inline expanding reject form per row + pagination
+- [x] `src/api/admin/tasks.ts` — `AdminTaskSubmission` / `AdminTaskSubmissionDetail` / `AdminTaskHistoryItem` interfaces + `adminListSubmissions` / `adminGetSubmission` / `adminReviewSubmission`
+- [x] `src/composables/admin/useTaskReview.ts` — list query (statusFilter + page) + quick `approve` mutation; display helpers exported for shared use (`taskStatusBadge`, `taskStatusLabel`, `taskFilterOptions`, `formatTaskDate`, `formatTaskDateTime`, `userInitials`)
+- [x] `src/composables/admin/useTaskReviewDetail.ts` — `['admin-task', id]` query + `feedbackText` (seeded from existing feedback) + `confirmingReject` + `approve` / `reject` mutations; invalidates both `admin-task` and `admin-tasks`
+- [x] `src/views/admin/tasks/TaskListView.vue` — submission table + filter pills (All/Pending/Approved/Rejected) + quick Approve button + Review/Detail link + pagination
+- [x] `src/views/admin/tasks/TaskDetailView.vue` — task brief card (full lesson description), student answer card (full URL + note + timestamp), decision panel (feedback textarea + Approve/Reject with confirmation), sidebar with student/course/other submissions
+- [x] `admin-task-detail` route (`/admin/tasks/:id`) in `src/router/routes/admin.ts`
+- [x] `TaskPlayer.vue` — the "Tugas Disetujui" card now also renders admin feedback when present (previously rejected-only)
 
 ---
 
@@ -2166,12 +2188,15 @@ touches the bootcamp models, so no bootcamp revenue exists to report yet — see
 
 **BE Tasks:**
 - [x] `GET /api/admin/dashboard/revenue` — four parallel aggregations: monthly series, top courses (`$lookup` into `courses`), yearly summary, status breakdown
+- [x] The monthly series and the yearly summary split revenue by product type via `$cond` — `course_total` / `bootcamp_total` (plus `course_orders` / `bootcamp_orders`) on the series, `courseTotal` / `bootcampTotal` on the summary. `total` stays the combined figure. Legacy orders with no `type` field fall on the course side, consistent with the `{ $ne: 'bootcamp' }` filter used by the top-courses ranking
 - [x] `src/models/Order.ts` — added index `{ status: 1, paidAt: -1 }` for the report queries
 
 **FE Tasks:**
-- [x] `src/api/admin/dashboard.ts` — `AdminRevenueReport` / `RevenuePoint` / `RevenueTopCourse` interfaces + `adminGetRevenueReport`
-- [x] `src/composables/admin/useRevenueReport.ts` — useQuery keyed by year, `placeholderData` keeps the previous year on screen while the new one loads, bar heights computed as a percentage of the peak month
+- [x] `src/api/admin/dashboard.ts` — `AdminRevenueReport` / `RevenuePoint` (carries `course_total` / `bootcamp_total` / `course_orders` / `bootcamp_orders`) / `RevenueTopCourse` interfaces + `adminGetRevenueReport`; `summary` carries `courseTotal` / `bootcampTotal`
+- [x] `src/composables/admin/useRevenueReport.ts` — useQuery keyed by year, `placeholderData` keeps the previous year on screen while the new one loads; `courseBars` / `bootcampBars` (typed `RevenueChartBar`) feed the two separate charts, with heights measured against `maxSegment` — the tallest segment across both types — so the two charts share a scale and stay comparable; `hasCourseRevenue` / `hasBootcampRevenue` decide which chart renders its empty state
 - [x] `src/views/admin/revenue/RevenueView.vue` — stat cards + bar chart + top courses table + year picker
+- [x] Monthly revenue renders as **two separate charts** side by side (`xl:grid-cols-2`, stacking vertically on narrow screens) — Course (indigo) and Bootcamp (amber) — rather than one stacked bar, so each reads on its own. The "Total" card also shows the course/bootcamp split so the combined figure can be traced
+- [x] `src/components/admin/RevenueBarChart.vue` — one bar-chart component used twice; props `title` / `bars` / `color` (`indigo` \| `amber`) / `total` / `hasData` / `emptyLabel` / `dimmed`; per-bar tooltip carries the amount, order count and month name; months with no transactions still render as a thin grey tick
 
 > No charting library was added. Twelve monthly bars are plain flexbox `div`s sized by
 > percentage height, which keeps the bundle unchanged for a single page.
@@ -2361,7 +2386,7 @@ User navigates to /my-bootcamps  (requires auth)
 
 **BE Tasks:**
 - [ ] `GET /api/bootcamps/my-enrollments` — list BootcampEnrollment user, populate batchId + packageId
-- [ ] `GET /api/admin/batches/:id/enrollments` — list all students enrolled in the batch (admin only)
+- [x] Admin-side participant list — covered by `GET /api/admin/bootcamps/:id/participants` (Phase 6.5), which returns every batch of a package in one call
 
 **FE Tasks:**
 - [ ] `src/types/bootcamps.ts` — add `MyBootcampEnrollment`
@@ -2529,10 +2554,12 @@ issuedAt        → Date
 | GET    | /api/admin/orders                             | List all orders from all users (pagination + filter by status)       | JWT + Admin |
 | PATCH  | /api/admin/orders/:id/mark-paid               | Force mark order as paid + upsert Enrollment (for stuck payments)    | JWT + Admin |
 | GET    | /api/admin/tasks                              | List all task submissions (filter by status: submitted/approved/rejected) | JWT + Admin |
+| GET    | /api/admin/tasks/:submissionId                | Submission detail: task brief (lesson.description), curriculum position, student answer, and the student's other submissions in the same course | JWT + Admin |
 | PATCH  | /api/admin/tasks/:submissionId                | Approve or reject task + optional feedback; reject removes Progress  | JWT + Admin |
 | GET    | /api/admin/bootcamps                          | List all bootcamp packages                                           | JWT + Admin |
 | GET    | /api/admin/bootcamps/mentors                  | List users with role 'mentor' — for mentor picker in form            | JWT + Admin |
 | GET    | /api/admin/bootcamps/:id                      | Bootcamp package detail + batches + sessions (for form pre-fill)     | JWT + Admin |
+| GET    | /api/admin/bootcamps/:id/participants         | Package participants across batches (user + batch + order), newest first | JWT + Admin |
 | POST   | /api/admin/bootcamps                          | Create bootcamp package                                              | JWT + Admin |
 | PATCH  | /api/admin/bootcamps/:id                      | Update bootcamp package                                              | JWT + Admin |
 | DELETE | /api/admin/bootcamps/:id                      | Delete package + cascade: BootcampBatch, BootcampSession             | JWT + Admin |
@@ -2542,8 +2569,7 @@ issuedAt        → Date
 | POST   | /api/admin/batches/:id/sessions               | Add session to batch                                                 | JWT + Admin |
 | PATCH  | /api/admin/sessions/:id                       | Update session                                                       | JWT + Admin |
 | DELETE | /api/admin/sessions/:id                       | Delete session                                                       | JWT + Admin |
-| GET    | /api/admin/dashboard/revenue                  | Revenue report — 12-month series + top courses + summary (`?year=`, defaults to current year) | JWT + Admin |
-| GET    | /api/admin/batches/:id/enrollments            | List all students enrolled in a batch                                | JWT + Admin |
+| GET    | /api/admin/dashboard/revenue                  | Revenue report — 12-month series (split course/bootcamp) + top courses & bootcamps + summary (`?year=`, defaults to current year) | JWT + Admin |
 
 ### Bootcamp Checkout & Enrollment (Phase 7)
 

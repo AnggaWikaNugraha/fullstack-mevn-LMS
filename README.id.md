@@ -38,10 +38,10 @@ src/
 │   └── admin/
 │       ├── courses.ts         # CRUD admin course + module + chapter + lesson (interface TypeScript + pemanggilan API)
 │       ├── quiz.ts            # CRUD quiz admin + interface AdminQuizQuestion
-│       ├── bootcamps.ts       # CRUD bootcamp admin; MentorUser / AdminMentor / AdminMentorPayload + adminListMentors()
+│       ├── bootcamps.ts       # CRUD bootcamp admin; MentorUser / AdminMentor / AdminMentorPayload / AdminBootcampParticipant + adminListMentors() / adminListBootcampParticipants()
 │       ├── topics.ts          # CRUD topic admin; interface AdminTopic + adminListTopics/adminCreateTopic/adminUpdateTopic/adminDeleteTopic
 │       ├── users.ts           # User admin; interface AdminUser/AdminUserDetail/AdminUserEnrollment/AdminUserOrder + adminListUsers/adminGetUser/adminUpdateUserRole
-│       ├── tasks.ts           # Review task admin; interface AdminTaskSubmission + adminListSubmissions/adminReviewSubmission
+│       ├── tasks.ts           # Review task admin; interface AdminTaskSubmission/AdminTaskSubmissionDetail/AdminTaskHistoryItem + adminListSubmissions/adminGetSubmission/adminReviewSubmission
 │       └── dashboard.ts       # Dashboard admin; interface AdminDashboardStats / AdminRevenueReport / RevenuePoint / RevenueTopCourse + adminGetDashboardStats/adminGetRevenueReport
 ├── composables/
 │   ├── useDeviceId.ts         # Membuat dan membaca UUID deviceId
@@ -77,22 +77,25 @@ src/
 │       ├── useCourseForm.ts     # mutation form create/edit course
 │       ├── useCourseContent.ts  # query detail course + helper invalidate
 │       ├── useCourseEditor.ts   # state expand + semua mutation CRUD module/chapter/lesson + expandedQuizzes/toggleQuiz
+│       ├── useAdminMenu.ts     # adminMenuItems + isAdminMenuActive — sumber tunggal menu admin (sidebar AdminLayout & dropdown navbar)
 │       ├── useQuizEditor.ts     # mutation CRUD soal quiz per lesson (tambah / ubah / hapus + state showAddForm)
 │       ├── useBootcampList.ts   # query daftar bootcamp + confirmDelete
 │       ├── useBootcampForm.ts   # create/edit package + pemilih mentor (toggleMentor / isMentorSelected / updateOccupation)
 │       ├── useBootcampContent.ts # query detail package + helper invalidate
+│       ├── useBootcampParticipants.ts # query peserta package + hitung per batch + filter batch + helper badge/tanggal
 │       ├── useBootcampEditor.ts  # expandedBatches + toggleBatch + expandAll/collapseAll + mutation CRUD batch & session
 │       ├── useTopicList.ts      # query daftar topic + mutation tambah/ubah/hapus + state showAddForm/editingTopic
 │       ├── useUserList.ts       # query daftar user (pencarian + paginasi) + mutation changeRole
 │       ├── useUserDetail.ts     # query detail user + mutation changeRole + helper roleBadge/roleOptions/formatDate/formatRupiah/statusBadge
-│       ├── useTaskReview.ts     # query daftar submission task (filter status + paginasi) + mutation approve/startReject/cancelReject/submitReject
+│       ├── useTaskReview.ts     # query daftar submission task (filter status + paginasi) + mutation approve cepat + helper tampilan bersama (taskStatusBadge/taskStatusLabel/taskFilterOptions/formatTaskDate/formatTaskDateTime/userInitials)
+│       ├── useTaskReviewDetail.ts # query detail satu submission (soal + jawaban + riwayat) + mutation approve/reject dengan feedback
 │       ├── useDashboardStats.ts  # query statistik dashboard (jumlah + pendapatan + transaksi terbaru)
-│       └── useRevenueReport.ts   # query pendapatan berdasarkan tahun + 12 batang bulanan yang diisi nol + state pemilih tahun
+│       └── useRevenueReport.ts   # query pendapatan berdasarkan tahun + dua set batang bulanan (courseBars & bootcampBars, 12 bulan diisi nol, skala dibagi) + state pemilih tahun
 ├── layouts/
 │   ├── DefaultLayout.vue      # Navbar + Footer
 │   ├── AuthLayout.vue         # Layar terbagi (branding kiri, form kanan)
 │   ├── ProfileLayout.vue      # Navbar + sidebar (Course Saya, Profil, Riwayat Pembelian) + RouterView
-│   └── AdminLayout.vue        # Navbar + sidebar admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue) + RouterView
+│   └── AdminLayout.vue        # Navbar + sidebar admin (menu dibaca dari useAdminMenu) + RouterView
 ├── router/
 │   ├── index.ts               # Vue Router + navigation guard (requiresAuth + requiresAdmin)
 │   └── routes/
@@ -151,17 +154,18 @@ src/
 │       ├── bootcamps/
 │       │   ├── BootcampListView.vue  # Tabel package + status badge + tombol Konten/Edit/Hapus
 │       │   ├── BootcampFormView.vue  # Form create/edit package; pemilih mentor (toggle user dengan role 'mentor' + input occupation)
-│       │   └── BootcampContentView.vue # Editor berbasis kartu: strip mentor; kartu batch (klik untuk mengembang, bar kuota, badge tipe); baris session (badge nomor + chip tanggal+jam); form tambah sesi sebagai kartu yang mengembang
+│       │   └── BootcampContentView.vue # Editor berbasis kartu: strip mentor; kartu batch (klik untuk mengembang, bar kuota, badge tipe, badge jumlah peserta); baris session (badge nomor + chip tanggal+jam); form tambah sesi sebagai kartu yang mengembang; panel Peserta Bootcamp (pill filter batch + daftar peserta)
 │       ├── tasks/
-│       │   └── TaskListView.vue      # Tabel submission + pill filter (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui/Tolak + form tolak inline + paginasi
+│       │   ├── TaskListView.vue      # Tabel submission + pill filter (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui cepat + tautan Review/Detail + paginasi
+│       │   └── TaskDetailView.vue    # Halaman review: soal tugas lengkap, jawaban peserta (URL + catatan), panel keputusan (feedback + Setujui/Tolak), sidebar peserta/kursus/riwayat
 │       ├── orders/
 │       │   └── OrderListView.vue     # Placeholder
 │       └── revenue/
-│           └── RevenueView.vue       # 4 kartu statistik + grafik batang CSS (12 bulan) + tabel course terlaris + pemilih tahun
+│           └── RevenueView.vue       # 4 kartu statistik (kartu total memuat pecahan course/bootcamp) + dua grafik batang terpisah (course & bootcamp) + tabel course & bootcamp terlaris + pemilih tahun
 └── components/
     ├── ui/
     │   ├── GlobalErrorModal.vue
-    │   ├── AppNavbar.vue           # Dropdown menu user (Course Saya, Profil, Riwayat Pembelian, Logout)
+    │   ├── AppNavbar.vue           # Dropdown menu user (Course Saya, Profil, Riwayat Pembelian, Logout) + dropdown Admin khusus role admin
     │   ├── AppFooter.vue
     │   └── GoogleSignInButton.vue
     ├── sections/
@@ -200,10 +204,10 @@ src/
 │   └── admin/
 │       ├── courseAdminController.ts    # CRUD admin: course + module + chapter + lesson + cascade delete; topic_name di-resolve otomatis dari koleksi Topic
 │       ├── quizAdminController.ts      # CRUD quiz admin: get/create/update/delete soal (beserta correct_index)
-│       ├── bootcampAdminController.ts  # CRUD admin: package + batch + session + cascade delete
+│       ├── bootcampAdminController.ts  # CRUD admin: package + batch + session + cascade delete; listPackageParticipants (peserta lintas batch dari BootcampEnrollment)
 │       ├── topicAdminController.ts     # CRUD topic admin: list/create/update/delete (dijaga selama masih ada course memakai slug tersebut)
 │       ├── userAdminController.ts      # User admin: listUsers (paginasi+pencarian) + getUserDetail (enrollment+order+total_spent) + updateUserRole
-│       ├── taskAdminController.ts     # Review task admin: listSubmissions (filter status + populate) + reviewSubmission (approve → upsert Progress; reject → hapus Progress + isi feedback)
+│       ├── taskAdminController.ts     # Review task admin: listSubmissions (filter status + populate) + getSubmissionDetail (lesson+chapter+module+course+riwayat) + reviewSubmission (approve → upsert Progress; reject → hapus Progress + isi feedback)
 │       └── dashboardAdminController.ts # Dashboard admin: getDashboardStats (jumlah + pendapatan + 5 order terbaru) + getRevenueReport (seri 12 bulan + course terlaris + ringkasan, semuanya berbasis WIB)
 ├── middlewares/
 │   ├── authMiddleware.ts    # protect + optionalProtect
@@ -1749,6 +1753,8 @@ User membuka /admin/*
 
 **Tugas FE:**
 - [x] `src/layouts/AdminLayout.vue` — AppNavbar + kartu sidebar admin (Dashboard, Courses, Topics, Quiz, Users, Bootcamps, Orders, Tasks, Revenue); pill nav di mobile
+- [x] `src/composables/admin/useAdminMenu.ts` — `adminMenuItems` + `isAdminMenuActive()` sebagai sumber tunggal daftar menu admin, dipakai bersama sidebar `AdminLayout` dan dropdown di navbar supaya isinya tidak pernah berbeda
+- [x] `src/components/ui/AppNavbar.vue` — dropdown **Admin** (ikon perisai) yang hanya muncul saat `auth.user?.role === 'admin'`, memuat seluruh tautan `/admin/*` dengan penanda menu aktif; tombolnya ikut menyala saat berada di halaman admin. Hanya satu dropdown yang boleh terbuka — membuka Admin menutup menu user, dan sebaliknya. Di layar sempit dropdown diganti seksi "Admin" bersekat di dalam menu mobile
 - [x] `router/routes/admin.ts` — semua route `/admin/*` dengan penjaga `requiresAdmin`; view placeholder untuk setiap sub-halaman
 - [x] Perbarui router guard di `router/index.ts` — periksa `auth.user?.role === 'admin'`
 - [x] `src/types/router.d.ts` — perluas `RouteMeta` dengan `requiresAdmin`
@@ -1942,6 +1948,7 @@ Admin membuka /admin/bootcamps
 - [x] `GET /api/admin/bootcamps` — daftar semua package + batch_count; populate `mentors.userId`
 - [x] `GET /api/admin/bootcamps/:id` — detail package + batch + session; populate `mentors.userId` (name, avatar_url)
 - [x] `GET /api/admin/bootcamps/mentors` — daftar semua user dengan `role: 'mentor'` (dipakai pemilih mentor di FE) — **harus dideklarasikan sebelum `/:id` di router**
+- [x] `GET /api/admin/bootcamps/:id/participants` — seluruh peserta package lintas batch; membaca `BootcampEnrollment` lewat `packageId` hasil denormalisasi; populate `userId` (name, email, avatar_url) + `batchId` (title) + `orderId` (amount, status, paidAt); urut `enrolledAt` menurun
 - [x] `POST /api/admin/bootcamps` — buat package
 - [x] `PATCH /api/admin/bootcamps/:id` — ubah package; populate `mentors.userId` di balasan
 - [x] `DELETE /api/admin/bootcamps/:id` — hapus package + berantai: BootcampBatch, BootcampSession
@@ -1953,18 +1960,19 @@ Admin membuka /admin/bootcamps
 - [x] `DELETE /api/admin/bootcamps/sessions/:id` — hapus session
 - [x] Skrip seed `npm run seed:mentors` — upsert 5 user mentor (idempoten, memakai `$setOnInsert`)
 - [x] Perbarui `bootcampSeeder.ts` — kueri user mentor berdasarkan email, gagal cepat bila tidak ada; pakai `{ userId, occupation }` alih-alih `{ name, image_url }`
-- [ ] `GET /api/admin/batches/:id/enrollments` — daftar student yang terdaftar di batch ini (Phase 7)
+- [x] ~~`GET /api/admin/batches/:id/enrollments`~~ — digantikan `GET /api/admin/bootcamps/:id/participants` di atas: satu kueri untuk seluruh batch, pemecahan per batch dilakukan di FE
 
 **Tugas FE:**
 - [x] `src/api/admin/bootcamps.ts` — `MentorUser` (di-populate), `AdminMentor` (userId: MentorUser), `AdminMentorPayload` (userId: string), `PackagePayload.mentors: AdminMentorPayload[]`; tambahkan `adminListMentors()`
 - [x] `src/composables/admin/useBootcampList.ts` — query daftar + confirmDelete
 - [x] `src/composables/admin/useBootcampForm.ts` — mutation create/edit + pengisian awal (konversi `m.userId._id` → string) + query `availableMentors`; fungsi `toggleMentor`, `isMentorSelected`, `updateOccupation`, `getMentorPayload`
 - [x] `src/composables/admin/useBootcampContent.ts` — query detail package + helper invalidate
+- [x] `src/composables/admin/useBootcampParticipants.ts` — query `['admin-bootcamp-participants', packageId]`; turunan `countByBatch` (badge jumlah peserta per kartu batch), `batchesWithParticipants` (pill filter), `batchFilter` + `filtered`; helper `orderStatusBadge` / `formatParticipantDate` / `participantInitials`
 - [x] `src/composables/admin/useBootcampEditor.ts` — state expand (expandedBatches + toggleBatch + expandAll + collapseAll) + mutation CRUD batch & session
 - [x] `src/views/admin/bootcamps/BootcampListView.vue` — tabel package + status badge + tombol Konten/Edit/Hapus
 - [x] `src/views/admin/bootcamps/BootcampFormView.vue` — form create/edit; pemilih mentor: daftar user mentor dengan toggle pilih (UserCheck/UserX) + input occupation untuk tiap mentor terpilih
-- [x] `src/views/admin/bootcamps/BootcampContentView.vue` — editor berbasis kartu: strip mentor di atas; kartu batch (tekan header untuk mengembang, indikator chevron, badge tipe, bar kuota); baris session dengan badge nomor + nama + chip tanggal+jam; form tambah sesi sebagai kartu yang mengembang (bukan grid inline)
-- [ ] `src/views/admin/bootcamps/BootcampEnrollmentsView.vue` — daftar student per batch + tombol cabut (Phase 7)
+- [x] `src/views/admin/bootcamps/BootcampContentView.vue` — editor berbasis kartu: strip mentor di atas; kartu batch (tekan header untuk mengembang, indikator chevron, badge tipe, bar kuota, **badge jumlah peserta nyata**); baris session dengan badge nomor + nama + chip tanggal+jam; form tambah sesi sebagai kartu yang mengembang (bukan grid inline); panel **Peserta Bootcamp** di bawah daftar batch — total terdaftar, pill filter per batch (muncul bila peserta tersebar di lebih dari satu batch), baris peserta (avatar, nama tertaut ke `/admin/users/:id`, email, batch, badge status order + nominal, tanggal bergabung)
+- [ ] Tombol cabut peserta (unenroll) dari panel Peserta Bootcamp (Phase 7)
 
 ---
 
@@ -2013,19 +2021,28 @@ Admin membuka /admin/tasks
     GET /api/admin/tasks  (daftar semua submission, filter status: pending/approved/rejected)
           |
           ▼
-    Admin menekan sebuah submission → lihat URL + catatan
+    Admin menekan "Review" pada sebuah baris → /admin/tasks/:submissionId
           |
-          ├─→ Admin menekan "Approve"
+          ▼
+    GET /api/admin/tasks/:submissionId
+    → soal tugas (lesson.description) + posisi di kurikulum (Kursus › Modul › Bab)
+    → jawaban peserta (submission_url + note + submittedAt)
+    → riwayat tugas lain peserta di kursus yang sama
+          |
+          ├─→ Admin menekan "Setujui Tugas"  (juga tersedia sebagai aksi cepat di tabel)
           |         ▼
-          |   PATCH /api/admin/tasks/:submissionId  { status: 'approved' }
+          |   PATCH /api/admin/tasks/:submissionId  { status: 'approved', feedback? }
           |   → upsert catatan Progress → lesson is_done ✓, lesson berikutnya terbuka
           |
-          └─→ Admin menekan "Reject"
+          └─→ Admin mengisi feedback → "Tolak Tugas" → konfirmasi
                     ▼
-              PATCH /api/admin/tasks/:submissionId  { status: 'rejected', feedback? }
+              PATCH /api/admin/tasks/:submissionId  { status: 'rejected', feedback }
               → hapus catatan Progress (bila ada) → lesson kembali belum selesai
               → FE student: TaskPlayer menampilkan badge Ditolak + feedback admin; perlu mengirim ulang
 ```
+
+> Penolakan hanya bisa dilakukan dari halaman detail karena admin perlu membaca soal beserta
+> jawabannya dan wajib mengisi feedback. Tabel hanya menyediakan aksi cepat **Setujui**.
 
 **Perubahan Model TaskSubmission:**
 ```
@@ -2037,15 +2054,20 @@ feedback  → string | null  (komentar opsional dari admin saat menolak)
 - [x] Perbarui model `TaskSubmission` — tambahkan `'approved'` dan `'rejected'` ke enum `status`, tambahkan `feedback: string | null`
 - [x] Perbarui `POST /api/tasks/:lessonId/submit` — status bawaan `'submitted'`; Progress **tidak** dibuat otomatis — admin yang membuatnya saat menyetujui
 - [x] `GET /api/admin/tasks` — daftar semua submission, filter `?status=`, paginasi; populate `userId` (name, email, avatar_url) + `lessonId` (title, type) + `courseId` (title)
-- [x] `PATCH /api/admin/tasks/:submissionId` — `approved` → upsert Progress; `rejected` → hapus Progress + isi feedback
+- [x] `GET /api/admin/tasks/:submissionId` — detail satu submission; populate `lessonId` (+ `description` sebagai soal tugas, `chapterId` → `moduleId`) + `courseId` (title, cover_url, level, topic_name) + `userId`; ikut mengembalikan `history` (maks 10 submission lain peserta yang sama di kursus itu)
+- [x] `PATCH /api/admin/tasks/:submissionId` — `approved` → upsert Progress; `rejected` → hapus Progress; feedback tersimpan pada kedua keputusan
 - [x] `taskAdminRoutes.ts` — setiap route dijaga `protect + adminOnly`; daftarkan di `routes/index.ts`
 
 **Tugas FE:**
 - [x] Perbarui `src/types/quiz.ts` — `TaskSubmission.status` kini `'submitted' | 'approved' | 'rejected'`; tambahkan field `feedback: string | null`
 - [x] Perbarui `TaskPlayer.vue` — tampilkan UI per status: ✅ Disetujui (hijau), ❌ Ditolak (merah + kotak feedback admin), 📎 Menunggu Review (kuning)
-- [x] `src/api/admin/tasks.ts` — antarmuka `AdminTaskSubmission` + `adminListSubmissions` / `adminReviewSubmission`
-- [x] `src/composables/admin/useTaskReview.ts` — query daftar (statusFilter + halaman) + mutation `approve` / `startReject` / `cancelReject` / `submitReject` + state `rejectingId` / `feedbackText`
-- [x] `src/views/admin/tasks/TaskListView.vue` — tabel submission + pill filter (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui/Tolak + form tolak yang mengembang inline per baris + paginasi
+- [x] `src/api/admin/tasks.ts` — antarmuka `AdminTaskSubmission` / `AdminTaskSubmissionDetail` / `AdminTaskHistoryItem` + `adminListSubmissions` / `adminGetSubmission` / `adminReviewSubmission`
+- [x] `src/composables/admin/useTaskReview.ts` — query daftar (statusFilter + halaman) + mutation `approve` cepat; helper tampilan diekspor bersama (`taskStatusBadge`, `taskStatusLabel`, `taskFilterOptions`, `formatTaskDate`, `formatTaskDateTime`, `userInitials`)
+- [x] `src/composables/admin/useTaskReviewDetail.ts` — query `['admin-task', id]` + `feedbackText` (terisi dari feedback lama) + `confirmingReject` + mutation `approve` / `reject`; invalidasi `admin-task` dan `admin-tasks`
+- [x] `src/views/admin/tasks/TaskListView.vue` — tabel submission + pill filter (Semua/Menunggu/Disetujui/Ditolak) + tombol Setujui cepat + tautan Review/Detail + paginasi
+- [x] `src/views/admin/tasks/TaskDetailView.vue` — kartu Soal Tugas (deskripsi lesson penuh), kartu Jawaban Peserta (URL penuh + catatan + waktu), panel Keputusan Review (textarea feedback + Setujui/Tolak dengan konfirmasi), sidebar peserta/kursus/riwayat tugas lain
+- [x] Route `admin-task-detail` (`/admin/tasks/:id`) di `src/router/routes/admin.ts`
+- [x] `TaskPlayer.vue` — kartu "Tugas Disetujui" ikut menampilkan feedback admin bila ada (sebelumnya hanya pada status Ditolak)
 
 ---
 
@@ -2163,12 +2185,15 @@ sama sekali tidak menyentuh model bootcamp, jadi belum ada pendapatan bootcamp y
 
 **Tugas BE:**
 - [x] `GET /api/admin/dashboard/revenue` — empat agregasi paralel: seri bulanan, course terlaris (`$lookup` ke `courses`), ringkasan tahunan, sebaran status
+- [x] Seri bulanan dan ringkasan tahunan memecah pendapatan per jenis produk lewat `$cond` — `course_total` / `bootcamp_total` (plus `course_orders` / `bootcamp_orders`) di seri, `courseTotal` / `bootcampTotal` di ringkasan. `total` tetap gabungan keduanya. Order lama tanpa field `type` jatuh ke sisi course, konsisten dengan penyaring `{ $ne: 'bootcamp' }` di peringkat course
 - [x] `src/models/Order.ts` — menambahkan indeks `{ status: 1, paidAt: -1 }` untuk kueri laporan
 
 **Tugas FE:**
-- [x] `src/api/admin/dashboard.ts` — antarmuka `AdminRevenueReport` / `RevenuePoint` / `RevenueTopCourse` + `adminGetRevenueReport`
-- [x] `src/composables/admin/useRevenueReport.ts` — useQuery berkunci tahun, `placeholderData` menahan tahun sebelumnya di layar selama tahun baru dimuat, tinggi batang dihitung sebagai persentase terhadap bulan tertinggi
+- [x] `src/api/admin/dashboard.ts` — antarmuka `AdminRevenueReport` / `RevenuePoint` (memuat `course_total` / `bootcamp_total` / `course_orders` / `bootcamp_orders`) / `RevenueTopCourse` + `adminGetRevenueReport`; `summary` memuat `courseTotal` / `bootcampTotal`
+- [x] `src/composables/admin/useRevenueReport.ts` — useQuery berkunci tahun, `placeholderData` menahan tahun sebelumnya di layar selama tahun baru dimuat; `courseBars` / `bootcampBars` (tipe `RevenueChartBar`) untuk dua grafik terpisah, tingginya dihitung terhadap `maxSegment` — penggal tertinggi dari kedua jenis — supaya skala kedua grafik sama dan bisa dibandingkan; `hasCourseRevenue` / `hasBootcampRevenue` menentukan grafik mana yang tampil kosong
 - [x] `src/views/admin/revenue/RevenueView.vue` — kartu statistik + grafik batang + tabel course terlaris + pemilih tahun
+- [x] Pendapatan bulanan tampil sebagai **dua grafik terpisah** berdampingan (`xl:grid-cols-2`, menumpuk vertikal di layar sempit) — Course (indigo) dan Bootcamp (amber) — bukan satu batang bertumpuk, supaya masing-masing terbaca sendiri. Kartu "Total" ikut menampilkan pecahan course/bootcamp supaya angka gabungan bisa ditelusuri
+- [x] `src/components/admin/RevenueBarChart.vue` — satu komponen grafik batang dipakai dua kali; props `title` / `bars` / `color` (`indigo` \| `amber`) / `total` / `hasData` / `emptyLabel` / `dimmed`; tooltip per batang berisi nominal, jumlah order, dan nama bulan; bulan tanpa transaksi tetap digambar sebagai garis abu tipis
 
 > Tidak ada pustaka grafik yang ditambahkan. Dua belas batang bulanan hanyalah `div` flexbox
 > yang tingginya diatur dalam persen, sehingga ukuran bundel tidak berubah demi satu halaman.
@@ -2357,7 +2382,7 @@ User membuka /my-bootcamps  (butuh auth)
 
 **Tugas BE:**
 - [ ] `GET /api/bootcamps/my-enrollments` — daftar BootcampEnrollment milik user, populate batchId + packageId
-- [ ] `GET /api/admin/batches/:id/enrollments` — daftar semua student yang terdaftar di batch (khusus admin)
+- [x] Daftar peserta sisi admin — sudah tercakup `GET /api/admin/bootcamps/:id/participants` (Phase 6.5), yang mengembalikan seluruh batch sebuah package dalam satu panggilan
 
 **Tugas FE:**
 - [ ] `src/types/bootcamps.ts` — tambahkan `MyBootcampEnrollment`
@@ -2525,10 +2550,12 @@ issuedAt        → Date
 | GET    | /api/admin/orders                             | Daftar semua order dari semua user (paginasi + filter status)        | JWT + Admin |
 | PATCH  | /api/admin/orders/:id/mark-paid               | Paksa tandai order sebagai terbayar + upsert Enrollment (untuk pembayaran tersangkut) | JWT + Admin |
 | GET    | /api/admin/tasks                              | Daftar semua submission task (filter status: submitted/approved/rejected) | JWT + Admin |
+| GET    | /api/admin/tasks/:submissionId                | Detail submission: soal tugas (lesson.description), posisi kurikulum, jawaban peserta, dan riwayat tugas lain di kursus yang sama | JWT + Admin |
 | PATCH  | /api/admin/tasks/:submissionId                | Setujui atau tolak task + feedback opsional; penolakan menghapus Progress | JWT + Admin |
 | GET    | /api/admin/bootcamps                          | Daftar semua package bootcamp                                        | JWT + Admin |
 | GET    | /api/admin/bootcamps/mentors                  | Daftar user dengan role 'mentor' — untuk pemilih mentor di form      | JWT + Admin |
 | GET    | /api/admin/bootcamps/:id                      | Detail package bootcamp + batch + session (untuk mengisi form)       | JWT + Admin |
+| GET    | /api/admin/bootcamps/:id/participants         | Peserta package lintas batch (user + batch + order), urut terbaru    | JWT + Admin |
 | POST   | /api/admin/bootcamps                          | Buat package bootcamp                                                | JWT + Admin |
 | PATCH  | /api/admin/bootcamps/:id                      | Perbarui package bootcamp                                            | JWT + Admin |
 | DELETE | /api/admin/bootcamps/:id                      | Hapus package + berantai: BootcampBatch, BootcampSession             | JWT + Admin |
@@ -2538,8 +2565,7 @@ issuedAt        → Date
 | POST   | /api/admin/batches/:id/sessions               | Tambah session ke batch                                              | JWT + Admin |
 | PATCH  | /api/admin/sessions/:id                       | Perbarui session                                                     | JWT + Admin |
 | DELETE | /api/admin/sessions/:id                       | Hapus session                                                        | JWT + Admin |
-| GET    | /api/admin/dashboard/revenue                  | Laporan pendapatan — seri 12 bulan + course terlaris + ringkasan (`?year=`, bawaannya tahun berjalan) | JWT + Admin |
-| GET    | /api/admin/batches/:id/enrollments            | Daftar semua student yang terdaftar di sebuah batch                  | JWT + Admin |
+| GET    | /api/admin/dashboard/revenue                  | Laporan pendapatan — seri 12 bulan (dipecah course/bootcamp) + course & bootcamp terlaris + ringkasan (`?year=`, bawaannya tahun berjalan) | JWT + Admin |
 
 ### Checkout & Enrollment Bootcamp (Phase 7)
 

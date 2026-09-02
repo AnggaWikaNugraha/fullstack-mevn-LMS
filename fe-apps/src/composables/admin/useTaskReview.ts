@@ -25,21 +25,8 @@ export function useTaskReview() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-tasks'] }),
   });
 
-  // ── State form reject ────────────────────────────────────────────────────────
-  const rejectingId = ref<string | null>(null);
-  const feedbackText = ref('');
-
-  function startReject(id: string) {
-    rejectingId.value = id;
-    feedbackText.value = '';
-  }
-  function cancelReject() {
-    rejectingId.value = null;
-  }
-  function submitReject(id: string) {
-    reviewSubmission({ id, status: 'rejected', feedback: feedbackText.value || undefined });
-    rejectingId.value = null;
-  }
+  // Approve cepat dari tabel; penolakan selalu lewat halaman detail karena
+  // butuh feedback dan pemeriksaan soal beserta jawabannya
   function approve(id: string) {
     reviewSubmission({ id, status: 'approved' });
   }
@@ -48,7 +35,44 @@ export function useTaskReview() {
     submissions, pagination, isLoading,
     statusFilter, page,
     reviewing,
-    rejectingId, feedbackText, startReject, cancelReject, submitReject,
     approve,
   };
+}
+
+// ── Helper tampilan yang dipakai bersama halaman list dan detail ─────────────
+
+export const taskStatusBadge: Record<string, string> = {
+  submitted: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  approved:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  rejected:  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+};
+
+export const taskStatusLabel: Record<string, string> = {
+  submitted: 'Menunggu',
+  approved:  'Disetujui',
+  rejected:  'Ditolak',
+};
+
+export const taskFilterOptions: { label: string; value: string }[] = [
+  { label: 'Semua', value: '' },
+  { label: 'Menunggu', value: 'submitted' },
+  { label: 'Disetujui', value: 'approved' },
+  { label: 'Ditolak', value: 'rejected' },
+];
+
+export function formatTaskDate(iso: string) {
+  return new Date(iso).toLocaleDateString('id-ID', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+}
+
+export function formatTaskDateTime(iso: string) {
+  return new Date(iso).toLocaleString('id-ID', {
+    day: '2-digit', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+export function userInitials(name: string) {
+  return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase();
 }

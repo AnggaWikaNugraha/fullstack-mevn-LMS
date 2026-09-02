@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import BootcampPackage from '../../models/BootcampPackage';
 import BootcampBatch from '../../models/BootcampBatch';
 import BootcampSession from '../../models/BootcampSession';
+import BootcampEnrollment from '../../models/BootcampEnrollment';
 import User from '../../models/User';
 import { AuthRequest } from '../../middlewares/authMiddleware';
 
@@ -59,6 +60,32 @@ export const getPackageDetail = async (req: AuthRequest, res: Response, next: Ne
     }));
 
     res.json({ success: true, data: { package: { ...pkg.toObject(), batches: batchesWithSessions } } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Daftar peserta satu package ──────────────────────────────────────────────
+
+export const listPackageParticipants = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const pkg = await BootcampPackage.findById(id).select('_id');
+    if (!pkg) {
+      res.status(404).json({ success: false, message: 'Package not found.' });
+      return;
+    }
+
+    // Enrollment menyimpan packageId hasil denormalisasi, jadi seluruh peserta
+    // lintas batch bisa diambil sekali jalan tanpa lookup batch dulu
+    const participants = await BootcampEnrollment.find({ packageId: id })
+      .populate('userId', 'name email avatar_url')
+      .populate('batchId', 'title')
+      .populate('orderId', 'amount status paidAt')
+      .sort({ enrolledAt: -1 });
+
+    res.json({ success: true, data: { participants, total: participants.length } });
   } catch (err) {
     next(err);
   }
