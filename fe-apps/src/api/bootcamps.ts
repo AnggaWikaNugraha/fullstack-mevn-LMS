@@ -4,6 +4,7 @@ import type {
   BootcampListResponse,
   BootcampDetailResponse,
   BootcampEnrollmentStatus,
+  MyBootcampsResponse,
 } from '@/types/bootcamps';
 import type { CreateOrderResponse } from '@/types/checkout';
 
@@ -25,3 +26,6 @@ export const createBootcampOrder = (batchId: string) =>
 
 export const checkBootcampEnrollment = (batchId: string) =>
   apiClient.get<ApiResponse<BootcampEnrollmentStatus>>(`/bootcamps/enrollments/check/${batchId}`);
+
+export const getMyBootcampEnrollments = () =>
+  apiClient.get<ApiResponse<MyBootcampsResponse>>('/bootcamps/my-enrollments');

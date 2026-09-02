@@ -62,7 +62,8 @@ src/
 │   │   ├── useBootcamps.ts
 │   │   ├── useBootcampDetail.ts
 │   │   ├── useBootcampCheckout.ts # load snap.js, createOrder per batch, callback snap.pay
-│   │   └── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
+│   │   ├── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
+│   │   └── useMyBootcamps.ts    # enrolled-bootcamp query + active/finished split + status badge & date helpers
 │   ├── checkout/
 │   │   ├── useCheckout.ts     # load snap.js, createOrder, snap.pay callbacks
 │   │   └── useEnrollment.ts   # polling + timeout + manualVerify fallback
@@ -131,6 +132,7 @@ src/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
 │   │   ├── MyCoursesView.vue        # Grid of purchased courses + progress bar
+│   │   ├── MyBootcampsView.vue      # Grid of enrolled batches + status badge + next-session card
 │   │   ├── ProfileView.vue          # Edit name, avatar URL, change password
 │   │   └── PurchaseHistoryView.vue  # Order history list + status badge
 │   ├── auth/
@@ -323,7 +325,7 @@ src/
 | Admin — Order Management                          | 🔄 Coming Soon  |
 | Admin — Dashboard Stats & Revenue Report          | ✅ Done         |
 | Bootcamp Checkout & Payment (Midtrans)            | ✅ Done         |
-| Bootcamp Saya (My Bootcamps)                      | 🔄 Coming Soon  |
+| Bootcamp Saya (My Bootcamps)                      | ✅ Done         |
 | Course Completion Certificate (PDF download)      | 🔄 Coming Soon  |
 | Live Session (Agora RTC)                          | 🔄 Coming Soon  |
 | Notifications                                     | 🔄 Coming Soon  |
@@ -2385,17 +2387,18 @@ User navigates to /my-bootcamps  (requires auth)
 ```
 
 **BE Tasks:**
-- [ ] `GET /api/bootcamps/my-enrollments` — list BootcampEnrollment user, populate batchId + packageId
+- [x] `GET /api/bootcamps/my-enrollments` — list the user's BootcampEnrollments, populating `batchId` + `packageId`; sessions for every batch are fetched once and grouped (not one query per batch), then each row is enriched with `status` (upcoming/ongoing/finished from the batch date range), `total_sessions`, and `upcoming_session` (the nearest schedule still ahead)
+- [x] The `/my-enrollments` route **must be declared before `/:id`** in `bootcampRoutes.ts`, otherwise the segment is swallowed as a package id
 - [x] Admin-side participant list — covered by `GET /api/admin/bootcamps/:id/participants` (Phase 6.5), which returns every batch of a package in one call
 
 **FE Tasks:**
-- [ ] `src/types/bootcamps.ts` — add `MyBootcampEnrollment`
-- [ ] `src/api/bootcamps.ts` — add `getMyBootcampEnrollments()`
-- [ ] `src/composables/bootcamps/useMyBootcamps.ts`
-- [ ] `src/views/user/MyBootcampsView.vue` — list enrolled batches + session info
-- [ ] Update `ProfileLayout.vue` — add a "My Bootcamps" menu item (LayoutIcon) to the sidebar + pill nav
-- [ ] Add route `/my-bootcamps` → `MyBootcampsView` (requiresAuth, under ProfileLayout)
-- [ ] `AppNavbar.vue` — add "My Bootcamps" to the user dropdown menu
+- [x] `src/types/bootcamps.ts` — add `MyBootcampEnrollment` + `MyBootcampsResponse`; `package` and `batch` are nullable because an admin can delete either after the user enrolled
+- [x] `src/api/bootcamps.ts` — add `getMyBootcampEnrollments()`
+- [x] `src/composables/bootcamps/useMyBootcamps.ts` — `useQuery(['my-bootcamps'])` + computed `active` / `finished`; `bootcampStatusBadge` / `bootcampStatusLabel` / `packageTypeLabel` / `formatSessionDate` helpers
+- [x] `src/views/user/MyBootcampsView.vue` — grid of enrolled batch cards: package cover, status badge, date range, session count + type (online/offline/hybrid), a "Sesi Berikutnya" box, and a link to the bootcamp detail; finished batches are grouped separately below at a dimmer opacity
+- [x] Update `ProfileLayout.vue` — add a "Bootcamp Saya" menu item (GraduationCap) to the sidebar + pill nav
+- [x] Add route `/my-bootcamps` → `MyBootcampsView` (requiresAuth, under ProfileLayout)
+- [x] `AppNavbar.vue` — add "Bootcamp Saya" to the user dropdown menu and to the mobile menu
 
 ---
 
@@ -2578,6 +2581,7 @@ issuedAt        → Date
 | POST   | /api/checkout/bootcamp/create-order           | Create bootcamp order + Snap token (`{ batchId }`)                   | JWT  |
 | POST   | /api/checkout/webhook                         | *(shared with course checkout)* — branches on `order.type` to upsert Enrollment or BootcampEnrollment | -    |
 | GET    | /api/checkout/verify/:orderId                 | *(shared with course checkout)* — same branch, used by the manual fallback button | JWT  |
+| GET    | /api/bootcamps/my-enrollments                 | Bootcamp batches the user joined + batch status, session count and nearest session | JWT  |
 | GET    | /api/bootcamps/enrollments/check/:batchId     | Check whether the user is enrolled in this batch — must be registered before `/api/bootcamps/:id` | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | List all of the user's bootcamp enrollments                          | JWT  |
 

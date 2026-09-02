@@ -62,7 +62,8 @@ src/
 │   │   ├── useBootcamps.ts
 │   │   ├── useBootcampDetail.ts
 │   │   ├── useBootcampCheckout.ts # load snap.js, createOrder per batch, callback snap.pay
-│   │   └── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
+│   │   ├── useBootcampEnrollment.ts # polling enrollment batch + timeout + manualVerify
+│   │   └── useMyBootcamps.ts    # query bootcamp yang diikuti + pisah aktif/selesai + helper badge status & tanggal
 │   ├── checkout/
 │   │   ├── useCheckout.ts     # memuat snap.js, createOrder, callback snap.pay
 │   │   └── useEnrollment.ts   # polling + timeout + fallback manualVerify
@@ -131,6 +132,7 @@ src/
 │   │   └── CheckoutResultView.vue
 │   ├── user/
 │   │   ├── MyCoursesView.vue        # Grid course yang sudah dibeli + progress bar
+│   │   ├── MyBootcampsView.vue      # Grid batch yang diikuti + badge status + kartu sesi berikutnya
 │   │   ├── ProfileView.vue          # Ubah nama, URL avatar, ganti kata sandi
 │   │   └── PurchaseHistoryView.vue  # Daftar riwayat order + status badge
 │   ├── auth/
@@ -323,7 +325,7 @@ src/
 | Admin — Manajemen Order                           | 🔄 Akan Datang  |
 | Admin — Statistik Dashboard & Laporan Pendapatan  | ✅ Selesai      |
 | Checkout & Pembayaran Bootcamp (Midtrans)         | ✅ Selesai      |
-| Bootcamp Saya                                     | 🔄 Akan Datang  |
+| Bootcamp Saya                                     | ✅ Selesai      |
 | Sertifikat Kelulusan Course (unduh PDF)           | 🔄 Akan Datang  |
 | Live Session (Agora RTC)                          | 🔄 Akan Datang  |
 | Notifikasi                                        | 🔄 Akan Datang  |
@@ -2381,17 +2383,18 @@ User membuka /my-bootcamps  (butuh auth)
 ```
 
 **Tugas BE:**
-- [ ] `GET /api/bootcamps/my-enrollments` — daftar BootcampEnrollment milik user, populate batchId + packageId
+- [x] `GET /api/bootcamps/my-enrollments` — daftar BootcampEnrollment milik user, populate `batchId` + `packageId`; sesi seluruh batch ditarik sekali lalu dikelompokkan (bukan satu kueri per batch), lalu tiap baris dilengkapi `status` (upcoming/ongoing/finished dari rentang tanggal batch), `total_sessions`, dan `upcoming_session` (jadwal terdekat yang belum lewat)
+- [x] Route `/my-enrollments` **harus dideklarasikan sebelum `/:id`** di `bootcampRoutes.ts`, kalau tidak segmennya tertangkap sebagai id package
 - [x] Daftar peserta sisi admin — sudah tercakup `GET /api/admin/bootcamps/:id/participants` (Phase 6.5), yang mengembalikan seluruh batch sebuah package dalam satu panggilan
 
 **Tugas FE:**
-- [ ] `src/types/bootcamps.ts` — tambahkan `MyBootcampEnrollment`
-- [ ] `src/api/bootcamps.ts` — tambahkan `getMyBootcampEnrollments()`
-- [ ] `src/composables/bootcamps/useMyBootcamps.ts`
-- [ ] `src/views/user/MyBootcampsView.vue` — daftar batch yang diikuti + info sesi
-- [ ] Perbarui `ProfileLayout.vue` — tambahkan menu "Bootcamp Saya" (LayoutIcon) ke sidebar + pill nav
-- [ ] Tambahkan route `/my-bootcamps` → `MyBootcampsView` (requiresAuth, di bawah ProfileLayout)
-- [ ] `AppNavbar.vue` — tambahkan "Bootcamp Saya" ke dropdown menu user
+- [x] `src/types/bootcamps.ts` — tambahkan `MyBootcampEnrollment` + `MyBootcampsResponse`; `package` dan `batch` bertipe nullable karena admin bisa menghapusnya setelah user mendaftar
+- [x] `src/api/bootcamps.ts` — tambahkan `getMyBootcampEnrollments()`
+- [x] `src/composables/bootcamps/useMyBootcamps.ts` — `useQuery(['my-bootcamps'])` + computed `active` / `finished`; helper `bootcampStatusBadge` / `bootcampStatusLabel` / `packageTypeLabel` / `formatSessionDate`
+- [x] `src/views/user/MyBootcampsView.vue` — grid kartu batch yang diikuti: cover package, badge status, rentang tanggal, jumlah sesi + tipe (online/offline/hybrid), kotak "Sesi Berikutnya", tautan ke detail bootcamp; batch selesai dikelompokkan terpisah di bawah dengan opacity lebih redup
+- [x] Perbarui `ProfileLayout.vue` — tambahkan menu "Bootcamp Saya" (GraduationCap) ke sidebar + pill nav
+- [x] Tambahkan route `/my-bootcamps` → `MyBootcampsView` (requiresAuth, di bawah ProfileLayout)
+- [x] `AppNavbar.vue` — tambahkan "Bootcamp Saya" ke dropdown menu user dan ke menu mobile
 
 ---
 
@@ -2574,6 +2577,7 @@ issuedAt        → Date
 | POST   | /api/checkout/bootcamp/create-order           | Buat order bootcamp + token Snap (`{ batchId }`)                     | JWT  |
 | POST   | /api/checkout/webhook                         | *(dipakai bersama checkout course)* — bercabang lewat `order.type` untuk upsert Enrollment atau BootcampEnrollment | -    |
 | GET    | /api/checkout/verify/:orderId                 | *(dipakai bersama checkout course)* — percabangan sama, dipakai tombol fallback manual | JWT  |
+| GET    | /api/bootcamps/my-enrollments                 | Batch bootcamp yang diikuti user + status batch, jumlah sesi, dan sesi terdekat | JWT  |
 | GET    | /api/bootcamps/enrollments/check/:batchId     | Periksa apakah user terdaftar di batch ini — wajib didaftarkan sebelum `/api/bootcamps/:id` | JWT  |
 | GET    | /api/bootcamps/my-enrollments                 | Daftar semua enrollment bootcamp milik user                          | JWT  |
 

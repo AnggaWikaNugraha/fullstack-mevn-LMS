@@ -12,6 +12,11 @@ const protectedRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/user/MyCoursesView.vue'),
       },
       {
+        path: 'my-bootcamps',
+        name: 'my-bootcamps',
+        component: () => import('@/views/user/MyBootcampsView.vue'),
+      },
+      {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/user/ProfileView.vue'),

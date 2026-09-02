@@ -58,3 +58,34 @@ export interface BootcampEnrollmentStatus {
   isEnrolled: boolean;
   enrolledAt: string | null;
 }
+
+// ── Bootcamp Saya ────────────────────────────────────────────────────────────
+
+// Batch dan package bisa bernilai null bila admin menghapusnya setelah user
+// mendaftar — kartu tetap ditampilkan dengan label pengganti
+export interface MyBootcampEnrollment {
+  enrollment_id: string;
+  enrolled_at: string;
+  package: {
+    _id: string;
+    title: string;
+    image_url: string;
+    status: 'open' | 'coming_soon' | 'closed';
+  } | null;
+  batch: {
+    _id: string;
+    title: string;
+    sub_title: string;
+    started_at: string;
+    ended_at: string;
+    package_type: 'online' | 'offline' | 'hybrid';
+  } | null;
+  status: 'upcoming' | 'ongoing' | 'finished';
+  total_sessions: number;
+  upcoming_session: BootcampSession | null;
+  sessions: BootcampSession[];
+}
+
+export interface MyBootcampsResponse {
+  bootcamps: MyBootcampEnrollment[];
+}

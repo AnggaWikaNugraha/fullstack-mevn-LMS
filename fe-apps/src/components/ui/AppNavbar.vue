@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { LogOut, User, BookOpen, ShoppingBag, ChevronDown, Menu, X, Shield } from '@lucide/vue';
+import { LogOut, User, BookOpen, GraduationCap, ShoppingBag, ChevronDown, Menu, X, Shield } from '@lucide/vue';
 import { useAuthStore } from '@/stores/authStore';
 import { logout as logoutApi } from '@/api/auth';
 import { useDeviceId } from '@/composables/useDeviceId';
@@ -132,6 +132,14 @@ async function handleLogout() {
                 Course Saya
               </RouterLink>
               <RouterLink
+                to="/my-bootcamps"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                @click="userMenuOpen = false"
+              >
+                <GraduationCap class="w-4 h-4 text-gray-400" />
+                Bootcamp Saya
+              </RouterLink>
+              <RouterLink
                 to="/purchases"
                 class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                 @click="userMenuOpen = false"
@@ -195,6 +203,7 @@ async function handleLogout() {
             {{ auth.user?.name }}
           </div>
           <RouterLink to="/my-courses" class="text-sm text-gray-600" @click="mobileOpen = false">Course Saya</RouterLink>
+          <RouterLink to="/my-bootcamps" class="text-sm text-gray-600" @click="mobileOpen = false">Bootcamp Saya</RouterLink>
           <RouterLink to="/purchases" class="text-sm text-gray-600" @click="mobileOpen = false">Riwayat Pembelian</RouterLink>
           <RouterLink to="/profile" class="text-sm text-gray-600" @click="mobileOpen = false">Profil</RouterLink>
 

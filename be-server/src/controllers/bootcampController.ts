@@ -136,3 +136,58 @@ export const checkBootcampEnrollment = async (req: AuthRequest, res: Response, n
     next(err);
   }
 };
+
+// ─── Bootcamp yang Diikuti User ───────────────────────────────────────────────
+
+export const getMyBootcampEnrollments = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const enrollments = await BootcampEnrollment.find({ userId: req.userId })
+      .populate('batchId')
+      .populate('packageId', 'title image_url status')
+      .sort({ enrolledAt: -1 });
+
+    // Sesi seluruh batch ditarik sekali lalu dikelompokkan, bukan satu kueri per batch
+    const batchIds = enrollments.map((e) => e.batchId?._id).filter(Boolean);
+    const sessions = await BootcampSession.find({ batchId: { $in: batchIds } }).sort({ session_date: 1 });
+
+    const now = new Date();
+
+    const bootcamps = enrollments.map((enrollment) => {
+      // Batch atau package bisa sudah dihapus admin setelah user mendaftar
+      const batch = enrollment.batchId as unknown as
+        | { _id: string; title: string; sub_title: string; started_at: Date; ended_at: Date; package_type: string }
+        | null;
+      const pkg = enrollment.packageId as unknown as
+        | { _id: string; title: string; image_url: string; status: string }
+        | null;
+
+      const batchSessions = batch
+        ? sessions.filter((s) => s.batchId.toString() === batch._id.toString())
+        : [];
+
+      // Sesi berikutnya = jadwal terdekat yang belum lewat; null bila batch sudah selesai
+      const upcomingSession = batchSessions.find((s) => new Date(s.session_date) >= now) ?? null;
+
+      let status: 'upcoming' | 'ongoing' | 'finished' = 'ongoing';
+      if (batch) {
+        if (now < new Date(batch.started_at)) status = 'upcoming';
+        else if (now > new Date(batch.ended_at)) status = 'finished';
+      }
+
+      return {
+        enrollment_id: enrollment._id,
+        enrolled_at: enrollment.enrolledAt,
+        package: pkg,
+        batch,
+        status,
+        total_sessions: batchSessions.length,
+        upcoming_session: upcomingSession,
+        sessions: batchSessions,
+      };
+    });
+
+    res.status(200).json({ success: true, data: { bootcamps } });
+  } catch (err) {
+    next(err);
+  }
+};

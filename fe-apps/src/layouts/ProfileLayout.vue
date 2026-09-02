@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { BookOpen, ShoppingBag, User } from '@lucide/vue';
+import { BookOpen, GraduationCap, ShoppingBag, User } from '@lucide/vue';
 import AppNavbar from '@/components/ui/AppNavbar.vue';
 
 const menuItems = [
   { to: '/my-courses', label: 'Course Saya', icon: BookOpen },
+  { to: '/my-bootcamps', label: 'Bootcamp Saya', icon: GraduationCap },
   { to: '/profile', label: 'Profil', icon: User },
   { to: '/purchases', label: 'Riwayat Pembelian', icon: ShoppingBag },
 ];
